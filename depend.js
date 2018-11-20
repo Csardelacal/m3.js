@@ -218,7 +218,7 @@
 				try {
 					self.callable = definition.apply(null, deps);
 				} catch (e) {
-					console.log('Error initializing module. Error was: ');
+					console.log('Error initializing module ' + this.name + '. Error was: ');
 					console.error(e);
 				}
 				self.resolved = true;
