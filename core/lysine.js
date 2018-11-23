@@ -311,6 +311,35 @@ function (iterate, input) {
 		};
 	}
 
+	function Condition(expression, element) {
+		var exp = /(c|v)\(([a-zA-Z_0-9\-]+)\)\s?(\=\=|\!\=)\s?(.+)/g;
+		var res = exp.exec(expression);
+		
+		var fn = res[1];
+		var id = res[2];
+		var comp = res[3];
+		var tgt = res[4];
+		
+		this.isVisible = function (data) {
+			var val = undefined;
+			
+			switch(fn) {
+				case 'c':
+					val = data[id].length;
+					break;
+				case 'v':
+					val = data[id];
+					break;
+			}
+			
+			return comp === '=='? val === tgt : val !== tgt;
+		};
+		
+		this.test = function (data) {
+			element.style.display = this.isVisible(data)? 'block' : 'none';
+		};
+	}
+
 	/**
 	 * Creates a new Lysine view that handles the user's HTML and accepts objects as
 	 * data to fill in said HTML. 
@@ -328,7 +357,8 @@ function (iterate, input) {
 			 html,
 			 data = {},
 			 adapters = {},
-			 attributeAdapters = [];
+			 attributeAdapters = [],
+			 conditions = [];
 		
 		/*
 		 * First we receive the id and check whether it is a string or a HTMLElement
@@ -387,6 +417,10 @@ function (iterate, input) {
 			for (i = 0; i < attributeAdapters.length; i+=1) {
 				attributeAdapters[i].fetchData(this);
 			}
+
+			for (i = 0; i < conditions.length; i+=1) {
+				conditions[i].test(data);
+			}
 		};
 
 		this.fetchAdapters = function (parent) {
@@ -416,6 +450,11 @@ function (iterate, input) {
 					if (attrAdapter.hasLysine()) {
 						attributeAdapters.push(attrAdapter);
 					}
+				}
+				
+				if (e.getAttribute && e.getAttribute('data-condition')) {
+					var c = new Condition(e.getAttribute('data-condition'), e);
+					conditions.push(c);
 				}
 			});
 			
