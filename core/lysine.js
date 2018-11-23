@@ -8,7 +8,11 @@
 if (HTMLElement === undefined) { throw 'Lysine requires a browser to work. HTMLElement class was not found'; }
 if (window      === undefined) { throw 'Lysine requires a browser to work. Window variable was not found'; }
 
-(function () {
+depend([
+	'm3/core/array/iterate',
+	'm3/core/lysine/inputAdapter'
+], 
+function (iterate, input) {
 	"use strict";
 	
 	/**
@@ -59,46 +63,6 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 	 * @param {type} element
 	 * @returns {lysine_L11.InputAdapter}
 	 */
-	function InputAdapter(element) {
-		this.setElement(element);
-		
-		/**
-		 * Gets the value of the input being managed. It will therefore just read 
-		 * the object's value property.
-		 * 
-		 * @returns {String}
-		 */
-		this.getValue = function () {
-			return this.getElement().value;
-		};
-		
-		/**
-		 * Defines the value for the element. This way we can change it on the 
-		 * browser to 'output' it to the user
-		 * 
-		 * @param {String} val
-		 * @returns {undefined}
-		 */
-		this.setValue = function (val) {
-			if (val === undefined) { val = ''; }
-			this.getElement().value = val;
-		};
-	}
-	
-	/*
-	 * Define the prototype of the InputAdapter so it can inherit from the Adapter
-	 * properly.
-	 */
-	InputAdapter.prototype = new Adapter();
-	InputAdapter.prototype.constructor = InputAdapter;
-
-	/**
-	 * An input adapter defines data inside a &lt;input> tag. To do so, it changes
-	 * or reads it's value when the user requests data.
-	 * 
-	 * @param {type} element
-	 * @returns {lysine_L11.InputAdapter}
-	 */
 	function SelectAdapter(element) {
 		this.setElement(element);
 		
@@ -122,7 +86,7 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 		 * @returns {undefined}
 		 */
 		this.setValue = function (val) {
-			var options = Array.prototype.slice.call(this.getElement().options, 0)
+			var options = Array.prototype.slice.call(this.getElement().options, 0);
 			this.getElement().selectedIndex = options.indexOf(this.getElement().querySelector('[value="' + val + '"]'));
 		};
 	}
@@ -346,35 +310,6 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 			else          { return value; }
 		};
 	}
-	
-	function Condition(expression, element) {
-		var exp = /(c|v)\(([a-zA-Z_0-9\-]+)\)\s?(\=\=|\!\=)\s?(.+)/g;
-		var res = exp.exec(expression);
-		
-		var fn = res[1];
-		var id = res[2];
-		var comp = res[3];
-		var tgt = res[4];
-		
-		this.isVisible = function (data) {
-			var val = undefined;
-			
-			switch(fn) {
-				case 'c':
-					val = data[id].length;
-					break;
-				case 'v':
-					val = data[id];
-					break;
-			}
-			
-			return comp === '=='? val === tgt : val !== tgt;
-		};
-		
-		this.test = function (data) {
-			element.style.display = this.isVisible(data)? 'block' : 'none';
-		};
-	}
 
 	/**
 	 * Creates a new Lysine view that handles the user's HTML and accepts objects as
@@ -393,8 +328,7 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 			 html,
 			 data = {},
 			 adapters = {},
-			 attributeAdapters = [],
-			 conditions = [];
+			 attributeAdapters = [];
 		
 		/*
 		 * First we receive the id and check whether it is a string or a HTMLElement
@@ -453,50 +387,41 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 			for (i = 0; i < attributeAdapters.length; i+=1) {
 				attributeAdapters[i].fetchData(this);
 			}
-
-			for (i = 0; i < conditions.length; i+=1) {
-				conditions[i].test(data);
-			}
 		};
 
-		this.fetchAdapters = function fetchAdapters(parent) {
+		this.fetchAdapters = function (parent) {
 			//Argument validation
 			parent = (parent !== undefined)? parent : html;
 
 			var elements = Array.prototype.slice.call(parent.childNodes, 0),
-				 i, v, attrAdapter;
+				 v, attrAdapter, self = this;
 
 
-			for (i = 0; i < elements.length; i+=1) {
-				if (elements[i].getAttribute && elements[i].getAttribute('data-for')) {
-					if (elements[i].hasAttribute('data-lysine-view')) {
-						v = new ArrayAdapter(elements[i]);
-						adapters[elements[i].getAttribute('data-for')] = v;
+			iterate(elements, function (e) {
+				if (e.getAttribute && e.getAttribute('data-for')) {
+					if (e.hasAttribute('data-lysine-view')) {
+						v = new ArrayAdapter(e);
+						adapters[e.getAttribute('data-for')] = v;
 					}
 					else {
-						adapters[elements[i].getAttribute('data-for')] = this.getAdapter(elements[i], null);
+						adapters[e.getAttribute('data-for')] = self.getAdapter(e, null);
 					}
 				}
-				else if (elements[i].nodeType !== 3) {
-					this.fetchAdapters(elements[i]);
+				else if (e.nodeType !== 3) {
+					self.fetchAdapters(e);
 				}
 
-				if (elements[i].nodeType !== 3) {
-					attrAdapter = new AttributeArrayAdapter(elements[i]);
+				if (e.nodeType !== 3) {
+					attrAdapter = new AttributeArrayAdapter(e);
 					if (attrAdapter.hasLysine()) {
 						attributeAdapters.push(attrAdapter);
 					}
 				}
-				
-				if (elements[i].getAttribute && elements[i].getAttribute('data-condition')) {
-					var c = new Condition(elements[i].getAttribute('data-condition'), elements[i]);
-					conditions.push(c);
-				}
-			}
+			});
 			
-			for (i in adapters) {
-				if (adapters.hasOwnProperty(i)) { this.registerGetter(i, adapters[i]); }
-			}
+			iterate(adapters, function (e, i) {
+				self.registerGetter(i, e);
+			});
 		};
 
 		this.getHTML = function getHTML() {
@@ -514,7 +439,7 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 			var adapter;
 
 			if (element.tagName.toLowerCase() === "input" || element.tagName.toLowerCase() === "textarea") {
-				adapter = new InputAdapter(element);
+				adapter = input.find(element)[0];
 			}
 			else if (element.tagName.toLowerCase() === "select") {
 				adapter = new SelectAdapter(element);
@@ -543,24 +468,24 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 		view.parentNode.insertBefore(html, view);
 	}
 	
+	/*
+	 * Return the entry point so other pieces of the application may be able to 
+	 * use Lysine.
+	 */
+	return {
+		view : lysine
+	};
+});
+
+/*
+ * We do not wish any of the view templates to be displayed by the browser. Furthermore,
+ * the application should attempt to cache and strip the elements from the DOM so
+ * no stray data gets into other code that accesses the DOM.
+ */
+(function() {
 	//Hide the unneeded view prototypes
 	var style = document.createElement('style');
 	style.type = "text/css";
 	style.innerHTML = "*[data-lysine-view] { display: none !important;}";
 	document.head.appendChild(style);
-
-	window.Lysine = {};
-	window.Lysine.view = lysine;
-	
-	if (window.depend) {
-		console.log('lysine here!');
-		depend('m3/core/lysine', function () {
-			return {
-				view : lysine
-			};
-		});
-	}
-	else {
-		console.log('No depend found');
-	}
 }());
