@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 
+
 depend(function() {
 	
+
 	/**
 	 * An input adapter defines data inside a &lt;input> tag. To do so, it changes
 	 * or reads it's value when the user requests data.
@@ -31,77 +33,60 @@ depend(function() {
 	 * @param {type} element
 	 * @returns {lysine_L11.InputAdapter}
 	 */
-	var InputAdapter = function (element) {
-		
-		this.element = element;
+	function SelectAdapter(element) {
 		this.view = undefined;
 		
-		var self = this;
-		
-		/**
-		 * If the user alters the data, we immediately inform the view.
-		 */
-		this.element.addEventListener('onkeyup', function() {
-			self.view.set(self.for(), this.value);
-		});
-		
-	};
-	
-	InputAdapter.prototype = {
 		/**
 		 * Gets the value of the input being managed. It will therefore just read 
 		 * the object's value property.
 		 * 
-		 * @deprecated 
+		 * @todo Add a special case for the event of a textarea
 		 * @returns {String}
 		 */
-		getValue: function () {
-			return this.element.value;
-		},
+		this.getValue = function () {
+			if (element.selectedIndex === -1) { return null; }
+			return element.options[this.getElement().selectedIndex].value;
+		};
 		
 		/**
 		 * Defines the value for the element. This way we can change it on the 
 		 * browser to 'output' it to the user
 		 * 
-		 * @deprecated 
 		 * @param {String} val
 		 * @returns {undefined}
 		 */
-		setValue: function (val) {
-			if (val === undefined) { val = ''; }
-			this.element.value = val;
-		},
+		this.setValue = function (val) {
+			var options = Array.prototype.slice.call(element.options, 0);
+			element.selectedIndex = options.indexOf(element.querySelector('[value="' + val + '"]'));
+		};
 		
-		readOnly: function () {
-			return false;
-		},
+		this.for = function() {
+			return [element.getAttribute('data-for')];
+		};
 		
-		for: function () {
-			return [this.element.getAttribute('data-for')];
-		},
-		
-		parent : function (view) {
+		this.parent = function(view) {
 			this.view = view;
 			return this;
-		},
+		};
 		
-		refresh : function () {
-			this.element.value = this.view.get(this.for()[0]);
-		}
+		this.refresh = function () {
+			var options = Array.prototype.slice.call(element.options, 0);
+			element.selectedIndex = options.indexOf(element.querySelector('[value="' + this.view.get(this.for()[0]) + '"]'));
+		};
 	};
 	
 	var findAdapters = function (element) {
 		
-		if (element.tagName.toLowerCase() === "input" || element.tagName.toLowerCase() === "textarea") {
-			return [new InputAdapter(element)];
+		if (element.tagName.toLowerCase() === "select") {
+			return [new SelectAdapter(element)];
 		}
 		
 		return [];
 	};
 	
 	return {
-		InputAdapter : InputAdapter,
+		SelectAdapter : SelectAdapter,
 		find : findAdapters
 	};
-
-});	
+	
+});

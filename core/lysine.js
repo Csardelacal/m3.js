@@ -9,10 +9,12 @@ if (HTMLElement === undefined) { throw 'Lysine requires a browser to work. HTMLE
 if (window      === undefined) { throw 'Lysine requires a browser to work. Window variable was not found'; }
 
 depend([
-	'm3/core/array/iterate',
-	'm3/core/lysine/inputAdapter'
+	'm3/core/collection',
+	'm3/core/lysine/inputAdapter',
+	'm3/core/lysine/selectAdapter',
+	'm3/core/lysine/htmlAdapter'
 ], 
-function (iterate, input) {
+function (collection, input, select, htmlAdapter) {
 	"use strict";
 	
 	/**
@@ -56,51 +58,10 @@ function (iterate, input) {
 		};
 	}
 
-	/**
-	 * An input adapter defines data inside a &lt;input> tag. To do so, it changes
-	 * or reads it's value when the user requests data.
-	 * 
-	 * @param {type} element
-	 * @returns {lysine_L11.InputAdapter}
-	 */
-	function SelectAdapter(element) {
-		this.setElement(element);
-		
-		/**
-		 * Gets the value of the input being managed. It will therefore just read 
-		 * the object's value property.
-		 * 
-		 * @todo Add a special case for the event of a textarea
-		 * @returns {String}
-		 */
-		this.getValue = function () {
-			if (this.getElement().selectedIndex === -1) { return null; }
-			return this.getElement().options[this.getElement().selectedIndex].value;
-		};
-		
-		/**
-		 * Defines the value for the element. This way we can change it on the 
-		 * browser to 'output' it to the user
-		 * 
-		 * @param {String} val
-		 * @returns {undefined}
-		 */
-		this.setValue = function (val) {
-			var options = Array.prototype.slice.call(this.getElement().options, 0);
-			this.getElement().selectedIndex = options.indexOf(this.getElement().querySelector('[value="' + val + '"]'));
-		};
-	}
-	
-	/*
-	 * Define the prototype of the InputAdapter so it can inherit from the Adapter
-	 * properly.
-	 */
-	SelectAdapter.prototype = new Adapter();
-	SelectAdapter.prototype.constructor = SelectAdapter;
-
 	function ArrayAdapter(view) {
 		this.views = [];
 		this.base  = view;
+		this.parentView = undefined;
 
 		this.getValue = function () {
 			var ret = [],
@@ -158,26 +119,20 @@ function (iterate, input) {
 			});
 			
 		};
-	}
-
-	ArrayAdapter.prototype = new Adapter();
-	ArrayAdapter.prototype.constructor = ArrayAdapter;
-
-	function HTMLNodeAdapter(element) {
-
-		this.setElement(element);
-
-		this.getValue = function () {
-			return this.getElement().innerHTML;
+		
+		this.for = function() {
+			return [this.base.getAttribute('data-for')];
 		};
-
-		this.setValue = function (val) {
-			this.getElement().innerHTML = val;
+		
+		this.parent = function(v) {
+			this.parentView = v;
+			return this;
+		};
+		
+		this.refresh = function () {
+			this.setValue(this.parentView.get(this.for()));
 		};
 	}
-
-	HTMLNodeAdapter.prototype = new Adapter();
-	HTMLNodeAdapter.prototype.constructor = HTMLNodeAdapter;
 	
 	/**
 	 * The Attribute Array Adapter provides a easy way to accessing the attributes
@@ -193,7 +148,7 @@ function (iterate, input) {
 	function AttributeArrayAdapter(element) {
 
 		this.setElement(element);
-		this.adapters = [];
+		this.adapters = collection([]);
 
 		this.fetchData = function (view) {
 			var data = view.getData();
@@ -209,11 +164,37 @@ function (iterate, input) {
 		};
 
 		this.hasLysine = function() {
+			var success = false;
 			
-			for (var i = 0; i < this.adapters.length; i++) {
-				if (this.adapters[i].hasLysine()) { return true; }
-			}
-			return false;
+			this.adapters.each(function(e) {
+				if (e.hasLysine()) { success = true; }
+			});
+			
+			return success;
+		};
+		
+		this.for = function() {
+			var ret = collection([]);
+			this.adapters.each(function (e) { ret.merge(e.for()); });
+			return ret.raw();
+		};
+		
+		this.parent = function(v) {
+			this.adapters.each(function (e) { e.parent(v); });
+			return this;
+		};
+		
+		this.refresh = function () {
+			var self = this;
+			
+			this.adapters.each(function (e) { 
+				e.refresh(); 
+				
+				self.getElement().setAttribute(
+					e.getAttributeName(), 
+					e.replace()
+				);
+			});
 		};
 		
 		var dataset = this.getElement().dataset,
@@ -240,6 +221,7 @@ function (iterate, input) {
 		this.name     = name;
 		this.value    = value;
 		this.adapters = this.makeAdapters();
+		this.view     = undefined;
 		
 		this.setData  = function (data) {
 			for (var i = 0; i < this.adapters.length; i++) {
@@ -287,6 +269,29 @@ function (iterate, input) {
 			if (pieces.length > 0) { adapters.push(new AttributeVariableAdapter(pieces.shift(), true)); }
 			
 			return adapters;
+		},
+		
+		for: function () {
+			var ret = collection([]);
+			
+			collection(this.adapters).each(function(e) {
+				if (!e.isReadOnly()) { ret.append(e.getName); }
+			});
+			
+			return ret;
+		},
+		
+		parent : function (view) {
+			this.view = view;
+			return this;
+		},
+		
+		refresh : function () {
+			var self = this;
+			collection(this.adapters).each(function(e) { 
+				if (e.isReadOnly()) { return; }
+				e.setValue(self.view.get(e.getName()));
+			});
 		}
 	};
 	
@@ -305,6 +310,10 @@ function (iterate, input) {
 			return name;
 		};
 		
+		this.isReadOnly  = function () {
+			return readonly;
+		};
+		
 		this.replace  = function () {
 			if (readonly) { return name; }
 			else          { return value; }
@@ -312,7 +321,7 @@ function (iterate, input) {
 	}
 
 	function Condition(expression, element) {
-		var exp = /(c|v)\(([a-zA-Z_0-9\-]+)\)\s?(\=\=|\!\=)\s?(.+)/g;
+		var exp = /([a-zA-Z_0-9]+)\(([a-zA-Z_0-9\-]+)\)\s?(\=\=|\!\=)\s?(.+)/g;
 		var res = exp.exec(expression);
 		
 		var fn = res[1];
@@ -320,14 +329,17 @@ function (iterate, input) {
 		var comp = res[3];
 		var tgt = res[4];
 		
+		var parent = element.parentNode;
+		var nextSib = element.nextSibling;
+		
 		this.isVisible = function (data) {
 			var val = undefined;
 			
 			switch(fn) {
-				case 'c':
+				case 'count':
 					val = data[id].length;
 					break;
-				case 'v':
+				case 'value':
 					val = data[id];
 					break;
 			}
@@ -336,7 +348,18 @@ function (iterate, input) {
 		};
 		
 		this.test = function (data) {
-			element.style.display = this.isVisible(data)? 'block' : 'none';
+			var visible = this.isVisible(data);
+			
+			if (visible === (element.parentNode === parent)) {
+				return;
+			}
+			
+			if (this.isVisible(data)) {
+				parent.insertBefore(element, nextSib);
+			}
+			else {
+				parent.removeChild(element);
+			}
 		};
 	}
 
@@ -356,8 +379,7 @@ function (iterate, input) {
 		var view, 
 			 html,
 			 data = {},
-			 adapters = {},
-			 attributeAdapters = [],
+			 adapters = collection([]),
 			 conditions = [];
 		
 		/*
@@ -372,6 +394,19 @@ function (iterate, input) {
 		 * of the original without causing trouble among the copies.
 		 */
 		html = view.cloneNode(true);
+		
+		this.set = function (k, v) {
+			data[k] = v;
+			
+			adapters.each(function(e) {
+				if (e.for().indexOf(k) === -1) { return; }
+				e.refresh();
+			});
+		};
+		
+		this.get = function (k) {
+			return data[k];
+		};
 
 		/**
 		 * Defines the data that we're gonna be using for the view. This way the 
@@ -383,73 +418,58 @@ function (iterate, input) {
 		 */
 		this.setData = function (newData) {
 			data = newData;
-			this.exportData();
+			
+			adapters.each(function(e) {
+				e.refresh();
+			});
 		};
 		
 		this.getData = function () {
-			this.importData();
 			return data;
 		};
 
 		this.getValue = this.getData;
 		this.setValue = this.setData;
 
-		this.importData = function () {
-			var i;
-
-			for (i in adapters) {
-				if (adapters.hasOwnProperty(i)) {
-					data[i] = adapters[i].getValue();
-				}
-			}
-
-		};
-
-		this.exportData = function () {
-			var i;
-
-			for (i in adapters) {
-				if (adapters.hasOwnProperty(i)) {
-					adapters[i].setValue(data[i]);
-				}
-			}
-
-			for (i = 0; i < attributeAdapters.length; i+=1) {
-				attributeAdapters[i].fetchData(this);
-			}
-
-			for (i = 0; i < conditions.length; i+=1) {
-				conditions[i].test(data);
-			}
-		};
-
 		this.fetchAdapters = function (parent) {
 			//Argument validation
 			parent = (parent !== undefined)? parent : html;
 
-			var elements = Array.prototype.slice.call(parent.childNodes, 0),
-				 v, attrAdapter, self = this;
-
-
-			iterate(elements, function (e) {
+			var attrAdapter, self = this;
+			
+			collection(parent.childNodes).each(function (e) {
+				
+				if (e.nodeType === 3) {
+					return;
+				}
+				
 				if (e.getAttribute && e.getAttribute('data-for')) {
+					
+					/*
+					 * Array adapters may not be overridden in multiple places, it just
+					 * makes little to no sense to have that feature.
+					 */
 					if (e.hasAttribute('data-lysine-view')) {
-						v = new ArrayAdapter(e);
-						adapters[e.getAttribute('data-for')] = v;
+						adapters.merge(collection([(new ArrayAdapter(e)).parent(self)]));
 					}
 					else {
-						adapters[e.getAttribute('data-for')] = self.getAdapter(e, null);
+						/*
+						 * This needs some fixing. The issue is that the system returns
+						 * an array of adapters for a given value, which is okay, but
+						 * the system cannot handle having multiple adapters for one 
+						 * property.
+						 */
+						var adapter = collection([]).merge(input.find(e)).merge(select.find(e)).merge(htmlAdapter.find(e));
+						adapters.merge(adapter.each(function (e) { return e.parent(self); }));
 					}
 				}
-				else if (e.nodeType !== 3) {
+				else {
 					self.fetchAdapters(e);
 				}
-
-				if (e.nodeType !== 3) {
-					attrAdapter = new AttributeArrayAdapter(e);
-					if (attrAdapter.hasLysine()) {
-						attributeAdapters.push(attrAdapter);
-					}
+				
+				attrAdapter = new AttributeArrayAdapter(e);
+				if (attrAdapter.hasLysine()) {
+					adapters.push(attrAdapter.parent(self));
 				}
 				
 				if (e.getAttribute && e.getAttribute('data-condition')) {
@@ -458,12 +478,9 @@ function (iterate, input) {
 				}
 			});
 			
-			iterate(adapters, function (e, i) {
-				self.registerGetter(i, e);
-			});
 		};
 
-		this.getHTML = function getHTML() {
+		this.getHTML = function () {
 			return html;
 		};
 
@@ -472,33 +489,6 @@ function (iterate, input) {
 		this.destroy = function () {
 			html.parentNode.removeChild(html);
 			return this;
-		};
-
-		this.getAdapter = function getAdapter(element, value) {
-			var adapter;
-
-			if (element.tagName.toLowerCase() === "input" || element.tagName.toLowerCase() === "textarea") {
-				adapter = input.find(element)[0];
-			}
-			else if (element.tagName.toLowerCase() === "select") {
-				adapter = new SelectAdapter(element);
-			}
-			else {
-				adapter = new HTMLNodeAdapter(element);
-			}
-			adapter.setValue(value);
-			return adapter;
-		};
-		
-		this.registerGetter = function (key, adapter) {
-			
-			Object.defineProperty(this, key, {
-				get: function()  { return adapter.getValue(); },
-				set: function(v) { return adapter.setValue(v); },
-				configurable: true,
-				enumerable  : true
-			});
-			
 		};
 
 		//Constructor tasks
