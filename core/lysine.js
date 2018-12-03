@@ -12,52 +12,12 @@ depend([
 	'm3/core/collection',
 	'm3/core/lysine/inputAdapter',
 	'm3/core/lysine/selectAdapter',
-	'm3/core/lysine/htmlAdapter'
+	'm3/core/lysine/htmlAdapter',
+	'm3/core/lysine/attributeAdapter'
 ], 
-function (collection, input, select, htmlAdapter) {
+function (collection, input, select, htmlAdapter, attributeAdapter) {
 	"use strict";
 	
-	/**
-	 * An adapter is any element that allows lysine to manipulate data. It's an 
-	 * interface for the reading and writing of data.
-	 * 
-	 * This class also allows or testing the different Adapters as compatible since
-	 * they all inherit from the Adapter class
-	 * 
-	 * Since JS is duck typed we can't define the abstract getValue and setValue
-	 * functions that we normally would. Instead we will have to make sure that
-	 * the methods are present in the implementing classes.
-	 * 
-	 * @returns {lysine_L11.Adapter}
-	 */
-	function Adapter() {
-		/*
-		 * The element the adapter wraps around. This will always be an HTML node.
-		 */
-		this.element = null;
-		
-		/**
-		 * This method defines the element this adapter is managing. This way Lysine
-		 * can leave a HTML node that the implementing adapter can retrieve.
-		 * 
-		 * @param {Element} e
-		 * @returns {undefined}
-		 */
-		this.setElement = function (e) {
-			this.element = e;
-		};
-
-		/**
-		 * The implementing
-		 * classes can use this to provide the data they're supposed to handle
-		 * 
-		 * @returns {Element}
-		 */
-		this.getElement = function () {
-			return this.element;
-		};
-	}
-
 	function ArrayAdapter(view) {
 		this.views = [];
 		this.base  = view;
@@ -130,197 +90,11 @@ function (collection, input, select, htmlAdapter) {
 		};
 		
 		this.refresh = function () {
-			this.setValue(this.parentView.get(this.for()));
+			this.setValue(this.parentView.get(this.for()[0]));
 		};
 	}
 	
-	/**
-	 * The Attribute Array Adapter provides a easy way to accessing the attributes
-	 * an element has that contain Lysine functionality.
-	 * 
-	 * An attribute called data-lysine-src for example will be used to set the value
-	 * of the src attribute, allowing you to use the src as a fallback in case the
-	 * attribute has no value in Lysine.
-	 * 
-	 * @param {HTMLElement} element
-	 * @returns {lysine_L11.AttributeArrayAdapter}
-	 */
-	function AttributeArrayAdapter(element) {
-
-		this.setElement(element);
-		this.adapters = collection([]);
-
-		this.fetchData = function (view) {
-			var data = view.getData();
-
-			for (var i = 0; i < this.adapters.length; i++) {
-				var a = this.adapters[i];
-				a.setData(data);
-				this.getElement().setAttribute(
-					a.getAttributeName(), 
-					a.replace()
-				);
-			}
-		};
-
-		this.hasLysine = function() {
-			var success = false;
-			
-			this.adapters.each(function(e) {
-				if (e.hasLysine()) { success = true; }
-			});
-			
-			return success;
-		};
-		
-		this.for = function() {
-			var ret = collection([]);
-			this.adapters.each(function (e) { ret.merge(e.for()); });
-			return ret.raw();
-		};
-		
-		this.parent = function(v) {
-			this.adapters.each(function (e) { e.parent(v); });
-			return this;
-		};
-		
-		this.refresh = function () {
-			var self = this;
-			
-			this.adapters.each(function (e) { 
-				e.refresh(); 
-				
-				self.getElement().setAttribute(
-					e.getAttributeName(), 
-					e.replace()
-				);
-			});
-		};
-		
-		var dataset = this.getElement().dataset,
-		    i;
-		
-		for (var i in dataset) {
-			if (element.dataset.hasOwnProperty(i)) {
-				this.adapters.push(new AttributeAdapter(i, element.dataset[i]));
-			}
-		}
-	}
-
-	AttributeArrayAdapter.prototype = new Adapter();
-	AttributeArrayAdapter.prototype.constructor = AttributeArrayAdapter;
-	
-	/**
-	 * 
-	 * @param {string} name
-	 * @param {string} value
-	 * @returns {lysine_L11.AttributeAdapter}
-	 */
-	function AttributeAdapter(name, value) {
-		
-		this.name     = name;
-		this.value    = value;
-		this.adapters = this.makeAdapters();
-		this.view     = undefined;
-		
-		this.setData  = function (data) {
-			for (var i = 0; i < this.adapters.length; i++) {
-				this.adapters[i].setValue(data[this.adapters[i].getName()]);
-			}
-		};
-		
-		this.replace  = function () {
-			var str = '';
-			
-			for (var i = 0; i < this.adapters.length; i++) {
-				str+= this.adapters[i].replace();
-			}
-			
-			return str;
-		};
-	}
-	
-	AttributeAdapter.prototype = {
-		hasLysine: function () { 
-			return this.name.search(/^lysine/) !== -1; 
-		},
-		
-		getAttributeName: function() {
-			return this.name.replace(/^lysine/, '').toLowerCase();
-		},
-		
-		makeAdapters: function () {
-			if (!this.hasLysine()) { return []; }
-			
-			var exp1 = /\{\{([A-Za-z0-9]+)\}\}/g;
-			var exp2 = /\{\{[A-Za-z0-9]+\}\}/g;
-			
-			var adapters = [];
-			
-			var pieces = this.value.split(exp2);
-			var m      = exp1.exec(this.value);
-			while (m) {
-				adapters.push(new AttributeVariableAdapter(pieces.shift(), true));
-				adapters.push(new AttributeVariableAdapter(m[1], false));
-				//Continue the loop
-				m = exp1.exec(this.value);
-			}
-			
-			if (pieces.length > 0) { adapters.push(new AttributeVariableAdapter(pieces.shift(), true)); }
-			
-			return adapters;
-		},
-		
-		for: function () {
-			var ret = collection([]);
-			
-			collection(this.adapters).each(function(e) {
-				if (!e.isReadOnly()) { ret.append(e.getName); }
-			});
-			
-			return ret;
-		},
-		
-		parent : function (view) {
-			this.view = view;
-			return this;
-		},
-		
-		refresh : function () {
-			var self = this;
-			collection(this.adapters).each(function(e) { 
-				if (e.isReadOnly()) { return; }
-				e.setValue(self.view.get(e.getName()));
-			});
-		}
-	};
-	
-	function AttributeVariableAdapter(name, readonly) {
-		var value = null;
-		
-		this.setValue = function (v) {
-			value = v;
-		};
-		
-		this.getValue = function () {
-			return value;
-		};
-		
-		this.getName  = function () {
-			return name;
-		};
-		
-		this.isReadOnly  = function () {
-			return readonly;
-		};
-		
-		this.replace  = function () {
-			if (readonly) { return name; }
-			else          { return value; }
-		};
-	}
-
-	function Condition(expression, element) {
+	function Condition(expression, element, adapters) {
 		var exp = /([a-zA-Z_0-9]+)\(([a-zA-Z_0-9\-]+)\)\s?(\=\=|\!\=)\s?(.+)/g;
 		var res = exp.exec(expression);
 		
@@ -329,36 +103,61 @@ function (collection, input, select, htmlAdapter) {
 		var comp = res[3];
 		var tgt = res[4];
 		
+		var view = undefined;
+		
 		var parent = element.parentNode;
 		var nextSib = element.nextSibling;
 		
-		this.isVisible = function (data) {
+		this.isVisible = function () {
 			var val = undefined;
 			
 			switch(fn) {
 				case 'count':
-					val = data[id].length;
+					val = view.get(id).length;
+					console.log(val);
 					break;
 				case 'value':
-					val = data[id];
+					val = view.get(id);
 					break;
 			}
 			
-			return comp === '=='? val === tgt : val !== tgt;
+			return comp === '=='? val == tgt : val != tgt;
 		};
 		
-		this.test = function (data) {
-			var visible = this.isVisible(data);
+		this.test = function () {
+			var visible = this.isVisible();
 			
 			if (visible === (element.parentNode === parent)) {
 				return;
 			}
 			
-			if (this.isVisible(data)) {
+			if (visible) {
 				parent.insertBefore(element, nextSib);
 			}
 			else {
 				parent.removeChild(element);
+			}
+		};
+		
+		this.for = function() {
+			var c = collection([]);
+			adapters.each(function (e) { c.merge(e.for()); });
+			
+			return c.raw();
+		};
+		
+		this.parent = function(v) {
+			view = v;
+			adapters.each(function(e) { e.parent(v); });
+			return this;
+		};
+		
+		this.refresh = function () {
+			this.test();
+			
+			if (this.isVisible()) {
+				console.log(res);
+				adapters.each(function(e) { e.refresh(); });
 			}
 		};
 	}
@@ -378,9 +177,8 @@ function (collection, input, select, htmlAdapter) {
 		
 		var view, 
 			 html,
-			 data = {},
-			 adapters = collection([]),
-			 conditions = [];
+			 data = {};
+		
 		
 		/*
 		 * First we receive the id and check whether it is a string or a HTMLElement
@@ -398,14 +196,18 @@ function (collection, input, select, htmlAdapter) {
 		this.set = function (k, v) {
 			data[k] = v;
 			
-			adapters.each(function(e) {
+			this.adapters.each(function(e) {
 				if (e.for().indexOf(k) === -1) { return; }
 				e.refresh();
 			});
 		};
 		
 		this.get = function (k) {
-			return data[k];
+			var ret = data;
+			var pieces = k.split('.');
+			
+			for (var i = 0; i < pieces.length; i++) { ret = ret[pieces[i]]; }
+			return ret;
 		};
 
 		/**
@@ -419,7 +221,7 @@ function (collection, input, select, htmlAdapter) {
 		this.setData = function (newData) {
 			data = newData;
 			
-			adapters.each(function(e) {
+			this.adapters.each(function(e) {
 				e.refresh();
 			});
 		};
@@ -435,9 +237,10 @@ function (collection, input, select, htmlAdapter) {
 			//Argument validation
 			parent = (parent !== undefined)? parent : html;
 
-			var attrAdapter, self = this;
+			var adapters = collection([]), self = this;
 			
 			collection(parent.childNodes).each(function (e) {
+				var extracted = collection([]);
 				
 				if (e.nodeType === 3) {
 					return;
@@ -450,7 +253,7 @@ function (collection, input, select, htmlAdapter) {
 					 * makes little to no sense to have that feature.
 					 */
 					if (e.hasAttribute('data-lysine-view')) {
-						adapters.merge(collection([(new ArrayAdapter(e)).parent(self)]));
+						extracted.merge(collection([(new ArrayAdapter(e)).parent(self)]));
 					}
 					else {
 						/*
@@ -460,24 +263,29 @@ function (collection, input, select, htmlAdapter) {
 						 * property.
 						 */
 						var adapter = collection([]).merge(input.find(e)).merge(select.find(e)).merge(htmlAdapter.find(e));
-						adapters.merge(adapter.each(function (e) { return e.parent(self); }));
+						extracted.merge(adapter.each(function (e) { return e.parent(self); }));
 					}
 				}
 				else {
-					self.fetchAdapters(e);
+					extracted.merge(self.fetchAdapters(e));
 				}
 				
-				attrAdapter = new AttributeArrayAdapter(e);
-				if (attrAdapter.hasLysine()) {
-					adapters.push(attrAdapter.parent(self));
-				}
+				/*
+				 * Get the adapters for the attributes, then informt them that the parent
+				 * for them is this view and attach them to the attributes.
+				 */
+				extracted.merge(attributeAdapter.find(e).each(function (e) { return e.parent(self); }));
 				
 				if (e.getAttribute && e.getAttribute('data-condition')) {
-					var c = new Condition(e.getAttribute('data-condition'), e);
-					conditions.push(c);
+					var c = new Condition(e.getAttribute('data-condition'), e, extracted);
+					adapters.push(c.parent(self));
+				}
+				else {
+					adapters.merge(extracted);
 				}
 			});
 			
+			return adapters;
 		};
 
 		this.getHTML = function () {
@@ -493,7 +301,7 @@ function (collection, input, select, htmlAdapter) {
 
 		//Constructor tasks
 		html.removeAttribute('data-lysine-view');
-		this.fetchAdapters();
+		this.adapters = this.fetchAdapters();
 		view.parentNode.insertBefore(html, view);
 	}
 	

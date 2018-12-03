@@ -54,6 +54,18 @@ depend(function () {
 			return new Collection(ret);
 		},
 		
+		filter: function(fn) {
+			var result = new Collection([]);
+			
+			this.each(function(e) {
+				if (fn(e)) {
+					result.push(e);
+				}
+			});
+			
+			return result;
+		},
+		
 		merge: function (elements) {
 			var self = this;
 			
