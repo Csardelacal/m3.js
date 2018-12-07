@@ -92,10 +92,10 @@ depend(['m3/core/collection'], function(collection) {
 			var ret = collection([]);
 			
 			collection(this.adapters).each(function(e) {
-				if (!e.isReadOnly()) { ret.push(e.getName); }
+				if (!e.isReadOnly()) { ret.push(e.getName()); }
 			});
 			
-			return ret;
+			return ret.raw();
 		},
 		
 		parent : function (view) {

@@ -112,8 +112,11 @@ function (collection, input, select, htmlAdapter, attributeAdapter) {
 			var val = undefined;
 			
 			switch(fn) {
+				case 'null':
+					val = view.get(id) === null? 'true' : 'false';
+					break;
 				case 'count':
-					val = view.get(id).length;
+					val = !view.get(id)? 0 : view.get(id).length;
 					console.log(val);
 					break;
 				case 'value':
