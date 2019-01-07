@@ -85,6 +85,10 @@ depend(function () {
 			return this;
 		},
 		
+		reduce: function(cb) {
+			return this.elements.reduce(cb);
+		},
+		
 		push: function (v) {
 			this.elements.push(v);
 		},
