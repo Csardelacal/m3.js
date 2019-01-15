@@ -63,6 +63,10 @@ depend(['m3/core/debounce'], function (debounce) {
 					wrapper = c.getHTML();
 					html = wrapper.firstChild;
 					
+					/*
+					 * Create a placeholder so the layout doesn't shift when the element
+					 * is being removed from the parent's static flow.
+					 */
 					c.getHTML().style.display = 'inline-block';
 					c.getHTML().style.height  = c.getBoundaries().getH() + 'px';
 					c.getHTML().style.width   = c.getBoundaries().getW() + 'px';
@@ -294,7 +298,7 @@ depend(['m3/core/debounce'], function (debounce) {
 
 			stuck.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() <= 0;}).pop();
 			runnerups.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() > 0;}).shift();
-
+			
 			/*
 			 * Pin the found elements to the top and / or bottom respectively
 			 */
