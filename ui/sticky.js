@@ -49,9 +49,11 @@ depend(['m3/core/debounce'], function (debounce) {
 		var wrapper = undefined;
 		var child   = undefined;
 		
-		this.setChild = function (c, ctx, next) {
+		this.setChild = function (stuck, next) {
 			
-			if (c) {
+			if (stuck) {
+				var c = stuck.getElement();
+				var ctx = stuck.getContext().getElement()
 				
 				if (child !== c) {
 					if (html) {
@@ -73,7 +75,7 @@ depend(['m3/core/debounce'], function (debounce) {
 					
 					html.style.position  = 'fixed';
 					html.style.display   = 'inline-block';
-					html.style[position] = '0';
+					//html.style[position] = '0';
 					html.style.height    = c.getBoundaries().getH() + 'px';
 					html.style.width     = c.getBoundaries().getW() + 'px';
 					html.style.zIndex    = 5;
@@ -81,19 +83,19 @@ depend(['m3/core/debounce'], function (debounce) {
 				}
 				
 				if (position === 'top') {
-					html.style.top = Math.min(
+					html.style.top =( Math.min(
 						0, 
 						next? (next.getBoundaries().getScreenOffsetTop() - c.getBoundaries().getH()) : 0, 
 						ctx.getBoundaries().getScreenOffsetTop() + ctx.getBoundaries().getH() - c.getBoundaries().getH() - 1 //THIS ONE NEEDS TO GO
-					) + 'px';
+					) + stuck.clear)+ 'px';
 				}
 				
 				if (position === 'bottom') {
-					html.style.bottom = Math.min(
+					html.style.bottom = (Math.min(
 						0, 
 						next? next.getBoundaries().getScreenOffsetBottom() - c.getBoundaries().getH(): 0, 
 						window.innerHeight - ctx.getBoundaries().getScreenOffsetTop() - c.getBoundaries().getH()
-					) + 'px';
+					) + stuck.clear) + 'px';
 				}
 			}
 			else if (html){
@@ -112,16 +114,14 @@ depend(['m3/core/debounce'], function (debounce) {
 		};
 	};
 	
-	/**
-	 * 
-	 * @type Object
-	 */
-	/*var pinned = {
-		top: new Pin('top'),
-		bottom: new Pin('bottom')
-	};/**/
 	
 	var Sticky = function (element, context, direction) {
+		
+		/*
+		 * Allows to configure the clearance that the element should maintain from
+		 * the top of the screen at any given point in time.
+		 */
+		this.clear = 0;
 		
 		this.getElement   = function () { return element; };
 		this.getContext   = function () { return context; };
@@ -268,16 +268,16 @@ depend(['m3/core/debounce'], function (debounce) {
 			});
 
 			topbound.sort(function (a, b) {
-				var va = a.getElement().getBoundaries().getScreenOffsetTop();
-				var vb = b.getElement().getBoundaries().getScreenOffsetTop();
+				var va = a.getElement().getBoundaries().getScreenOffsetTop() - a.clear;
+				var vb = b.getElement().getBoundaries().getScreenOffsetTop() - b.clear;
 
 				if (va < vb) { return -1; }
 				if (vb < va) { return  1; }
 				return 0;
 			});
 
-			stuck.top = topbound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetTop() <= 0;}).pop();
-			runnerups.top = topbound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetTop() > 0;}).shift();
+			stuck.top = topbound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetTop() - e.clear <= 0;}).pop();
+			runnerups.top = topbound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetTop() - e.clear > 0;}).shift();
 
 			/*
 			 * Repeat the same, but do it only with the elements bound to the bottom of
@@ -288,29 +288,27 @@ depend(['m3/core/debounce'], function (debounce) {
 			});
 
 			bottombound.sort(function (a, b) {
-				var va = a.getElement().getBoundaries().getScreenOffsetBottom();
-				var vb = b.getElement().getBoundaries().getScreenOffsetBottom();
+				var va = a.getElement().getBoundaries().getScreenOffsetBottom() - a.clear;
+				var vb = b.getElement().getBoundaries().getScreenOffsetBottom() - b.clear;
 
 				if (va < vb) { return -1; }
 				if (vb < va) { return  1; }
 				return 0;
 			});
 
-			stuck.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() <= 0;}).pop();
-			runnerups.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() > 0;}).shift();
+			stuck.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() - e.clear < 0;}).pop();
+			runnerups.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() - e.clear >= 0;}).shift();
 			
 			/*
 			 * Pin the found elements to the top and / or bottom respectively
 			 */
 			contexts[i].pinned.top.setChild(
-				stuck.top && stuck.top.getElement(), 
-				stuck.top && stuck.top.getContext().getElement(), 
+				stuck.top && stuck.top, 
 				runnerups.top && runnerups.top.getElement()
 			);
 
 			contexts[i].pinned.bottom.setChild(
-				stuck.bottom && stuck.bottom.getElement(), 
-				stuck.bottom && stuck.bottom.getContext().getElement(), 
+				stuck.bottom && stuck.bottom, 
 				runnerups.bottom && runnerups.bottom.getElement()
 			);
 		};
