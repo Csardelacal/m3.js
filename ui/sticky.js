@@ -86,7 +86,7 @@ depend(['m3/core/debounce'], function (debounce) {
 					html.style.top =( Math.min(
 						0, 
 						next? (next.getBoundaries().getScreenOffsetTop() - c.getBoundaries().getH()) : 0, 
-						ctx.getBoundaries().getScreenOffsetTop() + ctx.getBoundaries().getH() - c.getBoundaries().getH() - 1 //THIS ONE NEEDS TO GO
+						ctx.getBoundaries().getScreenOffsetTop() + ctx.getBoundaries().getH() - c.getBoundaries().getH() - stuck.clear //THIS ONE NEEDS TO GO
 					) + stuck.clear)+ 'px';
 				}
 				
