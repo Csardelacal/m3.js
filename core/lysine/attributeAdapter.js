@@ -59,18 +59,18 @@ depend(['m3/core/collection'], function(collection) {
 	
 	AttributeAdapter.prototype = {
 		hasLysine: function () { 
-			return this.name.search(/^lysine/) !== -1; 
+			return this.name.search(/^data-lysine-/) !== -1; 
 		},
 		
 		getAttributeName: function() {
-			return this.name.replace(/^lysine/, '').toLowerCase();
+			return this.name.replace(/^data-lysine-/, '').toLowerCase();
 		},
 		
 		makeAdapters: function () {
 			if (!this.hasLysine()) { return []; }
 			
-			var exp1 = /\{\{([A-Za-z0-9\.]+)\}\}/g;
-			var exp2 = /\{\{[A-Za-z0-9\.]+\}\}/g;
+			var exp1 = /\{\{([A-Za-z0-9\.\s\?\-\:]+)\}\}/g;
+			var exp2 = /\{\{[A-Za-z0-9\.\s\?\-\:]+\}\}/g;
 			
 			var adapters = [];
 			
@@ -129,6 +129,11 @@ depend(['m3/core/collection'], function(collection) {
 		};
 		
 		this.getName  = function () {
+			
+			if (name.indexOf('?') !== -1) {
+				return name.substr(0, name.indexOf('?'));
+			}
+			
 			return name;
 		};
 		
@@ -138,19 +143,29 @@ depend(['m3/core/collection'], function(collection) {
 		
 		this.replace  = function () {
 			if (readonly) { return name; }
-			else          { return value; }
+			
+			
+			if (name.indexOf('?') !== -1) {
+				var expression = name.substr(name.indexOf('?') + 1).split(':');
+				return value? expression[0] : expression[1];
+			}
+			else { 
+				return value; 
+			}
 		};
 	}
 	
 	var findAdapters = function (element) {
 		
-		var dataset = element.dataset,
+		var dataset = element.attributes,
 		    i, adapters = collection([]);
 		
-		for (var i in dataset) {
-			if (element.dataset.hasOwnProperty(i)) {
-				adapters.push(new AttributeAdapter(element, i, element.dataset[i]));
-			}
+		if (!dataset) {
+			return adapters;
+		}
+		
+		for (var i = 0; i < dataset.length; i++) {
+			adapters.push(new AttributeAdapter(element, dataset[i].name, dataset[i].value));
 		}
 		
 		var ret = adapters.filter(function(e) {

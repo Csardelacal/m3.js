@@ -106,7 +106,7 @@
 		
 		for (var i = 0; i < this._suitors.length; i++) {
 			try {
-				this._suitors[i].reject(this._result);
+				this._suitors[i]._failure(this._result);
 			} catch (e) {
 				this._suitors[i]._promise.reject(e);
 			}
@@ -163,12 +163,12 @@
 		this._result = result;
 		
 		for (var i = 0; i < this._suitors.length; i++) { 
-			
+		
 			if (!isFunction(this._suitors[i]._success)) {
 				this._suitors[i]._promise.resolve(this._result);
 				continue;
 			}
-			
+				
 			try {
 				var r = this._suitors[i]._success(this._result);
 				var next = this._suitors[i]._promise;
@@ -213,7 +213,7 @@
 
 			if (used) { return; }
 			used = true;
-			return fn.apply(undefined, arguments);
+			return fn? fn.apply(undefined, arguments) : null;
 		};
 	}
 	
