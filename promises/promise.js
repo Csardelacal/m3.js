@@ -141,7 +141,11 @@
 			return;
 		}
 		
-		if (isObject(result) || isFunction(result)) {
+		/*
+		 * While a null value as result is a thing that we should pass along (even 
+		 * if it makes little sense) it should not be treated as a deferrable object.
+		 */
+		if (result !== null && (isObject(result) || isFunction(result))) {
 			try {
 				var then = result.then;
 				if (isFunction(then)) { 
@@ -184,7 +188,7 @@
 	
 	function Suitor(success, failure) {
 		this._success = once(success);
-		this._failure = once(failure);
+		this._failure = once(required(failure));
 		this._promise = new Promise();
 	}
 
@@ -210,10 +214,17 @@
 	function once(fn) {
 		return function () {
 			var used = false;
-
+			
 			if (used) { return; }
 			used = true;
 			return fn? fn.apply(undefined, arguments) : null;
+		};
+	}
+	
+	function required (fn) {
+		return function () {
+			if (!fn) { throw arguments[0]; }
+			return fn.apply(undefined, arguments);
 		};
 	}
 	
