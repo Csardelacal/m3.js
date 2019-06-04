@@ -145,6 +145,7 @@ function (collection, input, select, htmlAdapter, attributeAdapter) {
 		this.for = function() {
 			var c = collection([]);
 			adapters.each(function (e) { c.merge(e.for()); });
+			c.push(id);
 			
 			return c.raw();
 		};

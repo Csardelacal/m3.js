@@ -29,7 +29,7 @@ depend(['m3/core/parent'], function (parent) {
 		
 		document.body.addEventListener(event, function (e) {
 			var found = parent(e.target, condition);
-			if (found) { callback(e, found); }
+			if (found) { callback.call(found, e, found); }
 		});
 	};
 	
