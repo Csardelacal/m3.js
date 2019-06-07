@@ -30,12 +30,13 @@
  * 
  * @returns {undefined}
  */
-depend(['m3/core/debounce'], function (debounce) {
+depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingWindow) {
 	
 	"use strict";
 	
-	var offset     = {x : window.pageXOffset, y : window.pageYOffset };
-	var contexts   = [];
+	var offset     = {x : window.pageXOffset, y : window.pageYOffset, dir : undefined };
+	var height     = window.innerheight;
+	var registered = [];
 	
 	/*
 	 * Stuck elements are those two that are either pinned to the top or the bottom
@@ -44,78 +45,92 @@ depend(['m3/core/debounce'], function (debounce) {
 	 * @param {type} position
 	 * @returns {stickyL#33.Stuck}
 	 */
-	var Pin = function (position) {
-		var html    = undefined;
-		var wrapper = undefined;
-		var child   = undefined;
+	var Pin = function () {
+		var pinned  = false;
 		
-		this.setChild = function (stuck, next) {
+		this.pin = function (stuck, position) {
 			
-			if (stuck) {
-				var c = stuck.getElement();
-				var ctx = stuck.getContext().getElement()
-				
-				if (child !== c) {
-					if (html) {
-						html.style    = null;
-						wrapper.style = null;
-						
-					}
-					
-					wrapper = c.getHTML();
-					html = wrapper.firstChild;
-					
-					/*
-					 * Create a placeholder so the layout doesn't shift when the element
-					 * is being removed from the parent's static flow.
-					 */
-					c.getHTML().style.display = 'inline-block';
-					c.getHTML().style.height  = c.getBoundaries().getH() + 'px';
-					c.getHTML().style.width   = c.getBoundaries().getW() + 'px';
-					
-					html.style.position  = 'fixed';
-					html.style.display   = 'inline-block';
-					//html.style[position] = '0';
-					html.style.height    = c.getBoundaries().getH() + 'px';
-					html.style.width     = c.getBoundaries().getW() + 'px';
-					html.style.zIndex    = 5;
-					
-				}
-				
-				if (position === 'top') {
-					html.style.top =( Math.min(
-						0, 
-						next? (next.getBoundaries().getScreenOffsetTop() - c.getBoundaries().getH()) : 0, 
-						ctx.getBoundaries().getScreenOffsetTop() + ctx.getBoundaries().getH() - c.getBoundaries().getH() - stuck.clear //THIS ONE NEEDS TO GO
-					) + stuck.clear)+ 'px';
-				}
-				
-				if (position === 'bottom') {
-					html.style.bottom = (Math.min(
-						0, 
-						next? next.getBoundaries().getScreenOffsetBottom() - c.getBoundaries().getH(): 0, 
-						window.innerHeight - ctx.getBoundaries().getScreenOffsetTop() - c.getBoundaries().getH()
-					) + stuck.clear) + 'px';
-				}
-			}
-			else if (html){
-				/*
-				 * No new element is found, we can therefore replace the original styles
-				 * to the wrappers and unset them.
-				 */
-				html.style    = null;
-				wrapper.style = null;
-				
-				child = undefined;
-				html  = undefined;
+			if (pinned) {
+				return;
 			}
 			
-			child = c;
+			var c = stuck.getElement();
+
+			var wrapper = c.getHTML();
+			var html = wrapper.firstChild;
+
+			/*
+			 * Create a placeholder so the layout doesn't shift when the element
+			 * is being removed from the parent's static flow.
+			 */
+			c.getHTML().style.display = 'inline-block';
+			c.getHTML().style.height  = c.getBoundaries().getH() + 'px';
+			c.getHTML().style.width   = c.getBoundaries().getW() + 'px';
+			
+			/*
+			 * Pin the element accordingly.
+			 */
+			html.style = null;
+			html.style.position  = 'fixed';
+			html.style.display   = 'inline-block';
+			html.style.height    = c.getBoundaries().getH() + 'px';
+			html.style.width     = c.getBoundaries().getW() + 'px';
+			html.style.zIndex    = 5;
+					
+				
+			if (position === 'top') {
+				html.style.top = '0px';
+			}
+
+			if (position === 'bottom') {
+				html.style.bottom = '0px';
+			}
+			
+			pinned = true;
+		};
+		
+		this.latch = function (stuck, direction) {
+			if (!pinned) {
+				return;
+			}
+			
+			var c = stuck.getElement();	
+			var wrapper = c.getHTML();
+			var html = wrapper.firstChild;
+			var constraints = getConstraints(html);
+			
+			/*
+			 * No new element is found, we can therefore replace the original styles
+			 * to the wrappers and unset them.
+			 */
+			html.style    = null;
+			wrapper.style = null;
+			
+			if (direction === 'top') {
+				wrapper.style.height = constraints.height + 'px';
+				html.style.position  = 'absolute';
+				html.style.top       = stuck.getContext().getElement().getBoundaries().a + 'px';
+				html.style.left      = constraints.left + 'px';
+			}
+			
+			if (direction === 'bottom') {
+				wrapper.style.height = constraints.height + 'px';
+				html.style.position  = 'absolute';
+				html.style.top       = (stuck.getContext().getElement().getBoundaries().b - c.getBoundaries().getHeight()) + 'px';
+				html.style.left      = constraints.left + 'px';
+			}
+			
+			if (direction === 'src') {
+				//Leave them alone
+			}
+			
+
+			pinned = false;
 		};
 	};
 	
 	
-	var Sticky = function (element, context, direction) {
+	var Sticky = function (element, placeholder, context, direction) {
 		
 		/*
 		 * Allows to configure the clearance that the element should maintain from
@@ -125,9 +140,163 @@ depend(['m3/core/debounce'], function (debounce) {
 		
 		this.getElement   = function () { return element; };
 		this.getContext   = function () { return context; };
-		this.getDirection = function () { return direction || 'top'; };
 		
-		context.registered.push(this);
+		this.getDirection = function () { 
+			return direction || 'top'; 
+		};
+		
+		this.update = function (viewport, direction) {
+			var contextB = this.getContext().getElement().getBoundaries();
+			var elementB = this.getElement().getBoundaries();
+			
+			/*
+			 * If the viewport and the context do not touch, then there's no way our
+			 * item is going to be displayed.
+			 */
+			if (contextB.intersection(viewport) === undefined) { return this.reset(); }
+			
+			/*
+			 * In the special case that our item has gigantic boundaries that fit the
+			 * viewport in them, we don't move it so the user can scroll inside it.
+			 */
+			console.log(elementB, viewport, elementB.contains(viewport));
+			if (elementB.contains(viewport)) { 
+				return this.ground(); 
+			}
+			
+			/*
+			 * If the context is large enough to contain the element, then we automatically
+			 * pin the item to wherever it wants.
+			 */
+			if (contextB.extend(1).contains(viewport)) { return elementB.height() > viewport.height()? (this.pin(direction === 'up'? 'top' : 'bottom')) : this.pin(this.getDirection()); }
+			
+			/*
+			 * If the context is small enough to fit into the viewport, then our item 
+			 * will be certianly not oving around.
+			 */
+			if (viewport.contains(contextB)) { return this.reset(); }
+			
+			/*
+			 * At this point we know that the context and the viewport intersect,
+			 * but that neither of them contain the other. This means that we need 
+			 * to make a decision.
+			 */
+			if (contextB.above(viewport)) {
+				if (this.getDirection() == 'top') { return elementB.height() > contextB.intersection(viewport).height()? this.latch('bottom') : this.pin('top'); }
+				if (this.getDirection() == 'bottom') { return this.latch('bottom'); }
+			}
+			
+			if (contextB.below(viewport)) {
+				if (this.getDirection() == 'top') { return this.latch('top'); }
+				if (this.getDirection() == 'bottom') { return elementB.height() > contextB.intersection(viewport).height()? this.latch('top') : this.pin('bottom'); }
+			}
+			
+		};
+		
+		this.pin = function (position) {
+
+			var wrapper = placeholder.getHTML();
+			var detach  = this.getElement().getHTML();
+			var c       = getConstraints(detach);
+			
+			/*
+			 * Create a placeholder so the layout doesn't shift when the element
+			 * is being removed from the parent's static flow.
+			 */
+			wrapper.style.display = 'inline-block';
+			wrapper.style.height  = c.height + 'px';
+			wrapper.style.width   = c.width + 'px';
+			
+			/*
+			 * Pin the element accordingly.
+			 */
+			detach.style = null;
+			detach.style.position  = 'fixed';
+			detach.style.display   = 'inline-block';
+			detach.style.height    = c.height + 'px';
+			detach.style.width     = c.width + 'px';
+			detach.style.zIndex    = 5;
+					
+				
+			if (position === 'top') {
+				detach.style.top = '0px';
+			}
+
+			if (position === 'bottom') {
+				detach.style.bottom = '0px';
+			}
+		};
+		
+		
+		this.latch = function (direction) {
+			
+			var wrapper = placeholder.getHTML();
+			var detach  = this.getElement().getHTML();
+			var c       = getConstraints(detach);
+			
+			/*
+			 * Create a placeholder so the layout doesn't shift when the element
+			 * is being removed from the parent's static flow.
+			 */
+			//detach.style = null;
+			wrapper.style.display = 'inline-block';
+			wrapper.style.height  = c.height + 'px';
+			wrapper.style.width   = c.width + 'px';
+			
+			if (direction === 'top') {
+				detach.style.position  = 'absolute';
+				detach.style.top       = context.getElement().getBoundaries().a + 'px';
+				detach.style.left      = '0px';
+			}
+			
+			if (direction === 'bottom') {
+				detach.style.position  = 'absolute';
+				detach.style.bottom    = (context.getElement().getBoundaries().a + context.getElement().getBoundaries().getHeight()) + 'px';
+				detach.style.left      = '0px';
+			}
+
+		};
+		
+		
+		this.ground = function () {
+			
+			var wrapper = placeholder.getHTML();
+			var detach  = this.getElement().getHTML();
+			var c       = detach.getBoundingClientRect();
+			
+			detach.style = null;
+			
+			/*
+			 * Create a placeholder so the layout doesn't shift when the element
+			 * is being removed from the parent's static flow.
+			 */
+			wrapper.style.display = 'inline-block';
+			wrapper.style.height  = c.height + 'px';
+			wrapper.style.width   = c.width + 'px';
+			
+			
+			detach.style.position  = 'absolute';
+			detach.style.top       = (c.top + offset.y) + 'px';
+			detach.style.left      = '0px';
+
+		};
+		
+		
+		this.reset = function () {
+			
+			var wrapper = placeholder.getHTML();
+			var detach  = this.getElement().getHTML();
+			
+			/*
+			 * Create a placeholder so the layout doesn't shift when the element
+			 * is being removed from the parent's static flow.
+			 */
+			detach.style = null;
+			wrapper.style = null;
+
+		};
+		
+		registered.push(this);
 	};
 	
 	var Context = function (element) {
@@ -136,41 +305,13 @@ depend(['m3/core/debounce'], function (debounce) {
 			return element;
 		};
 		
-		this.pinned = {
-			top: new Pin('top'),
-			bottom: new Pin('bottom')
-		};
+		this.pinned = new Pin();
 		
 		/**
 		 * 
 		 * @type Array
 		 */
 		this.registered = [];
-	};
-	
-	var Boundaries = function (x, y, h, w) {
-		
-		this.getX = function () { return x; };
-		this.getY = function () { return y; };
-		this.getH = function () { return h; };
-		this.getW = function () { return w; };
-		
-		this.onscreen = function () {
-			return (offset.x < x + w && offset.x + window.innerWidth  > x) &&
-			       (offset.y < y + h && offset.y + window.innerHeight > y);
-		};
-		
-		this.getScreenOffsetTop = function () {
-			return y - offset.y;
-		};
-		
-		this.getScreenOffsetBottom = function () {
-			return offset.y + window.innerHeight - (y + h);
-		};
-		
-		this.getScreenOffsetLeft = function () {
-			return x - offset.x;
-		};
 	};
 		
 	/**
@@ -202,15 +343,9 @@ depend(['m3/core/debounce'], function (debounce) {
 	var Element = function (original) {
 		
 		this.getBoundaries = debounce(function () { 
-			var box = getConstraints(original);
-			
-			return new Boundaries(
-				box.left, 
-				box.top,
-				box.height,
-				box.width
-			);
-		}, 2000);
+			var box = original.getBoundingClientRect();
+			return new RollingWindow(box.top + offset.y, offset.y + box.top + box.height);
+		}, 50);
 		
 		this.getHTML = function() {
 			return original;
@@ -239,79 +374,22 @@ depend(['m3/core/debounce'], function (debounce) {
 	 * it should leave behind.
 	 */
 	window.addEventListener('scroll', debounce(function () {
-		for (var i = 0; i < contexts.length; i++) {
-			
-			var stuck     = { top : undefined, bottom : undefined };
-			var runnerups = { top : undefined, bottom : undefined };
+		
+		/*
+		 * Recalculate the offsets. Offsets do, for some reason, trigger reflows
+		 * of the browser. So, we must read them before making any changes to the
+		 * DOM
+		 */
+		offset = {x : window.pageXOffset, y : window.pageYOffset, dir : (window.pageYOffset - offset.y) > 0? 'down' : 'up' };
+		height = window.innerHeight;
 
-			/*
-			 * Recalculate the offsets. Offsets do, for some reason, trigger reflows
-			 * of the browser. So, we must read them before making any changes to the
-			 * DOM
-			 */
-			offset = {x : window.pageXOffset, y : window.pageYOffset };
+		/*
+		 * Only elements with oncreen contexts are even remotely relevant to this 
+		 * query, since offscreen contexts never allow their elements to escape.
+		 */
+		registered.forEach( function (e) { e.update(new RollingWindow(offset.y, offset.y + height), offset.dir); });
+		
 
-			/*
-			 * Only elements with oncreen contexts are even remotely relevant to this 
-			 * query, since offscreen contexts never allow their elements to escape.
-			 */
-			var onscreen = contexts[i].registered.filter(function (e) { 
-				return e.getContext().getElement().getBoundaries().onscreen(); 
-			});
-
-			/*
-			 * Select only the elements to be bound to the top of the page to check 
-			 * whether the element needs to be pinned
-			 */
-			var topbound = onscreen.filter(function(e) {
-				return e.getDirection() === 'top';
-			});
-
-			topbound.sort(function (a, b) {
-				var va = a.getElement().getBoundaries().getScreenOffsetTop() - a.clear;
-				var vb = b.getElement().getBoundaries().getScreenOffsetTop() - b.clear;
-
-				if (va < vb) { return -1; }
-				if (vb < va) { return  1; }
-				return 0;
-			});
-
-			stuck.top = topbound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetTop() - e.clear <= 0;}).pop();
-			runnerups.top = topbound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetTop() - e.clear > 0;}).shift();
-
-			/*
-			 * Repeat the same, but do it only with the elements bound to the bottom of
-			 * the page.
-			 */
-			var bottombound = onscreen.filter(function(e) {
-				return e.getDirection() === 'bottom';
-			});
-
-			bottombound.sort(function (a, b) {
-				var va = a.getElement().getBoundaries().getScreenOffsetBottom() - a.clear;
-				var vb = b.getElement().getBoundaries().getScreenOffsetBottom() - b.clear;
-
-				if (va < vb) { return -1; }
-				if (vb < va) { return  1; }
-				return 0;
-			});
-
-			stuck.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() - e.clear < 0;}).pop();
-			runnerups.bottom = bottombound.filter(function(e) { return e.getElement().getBoundaries().getScreenOffsetBottom() - e.clear >= 0;}).shift();
-			
-			/*
-			 * Pin the found elements to the top and / or bottom respectively
-			 */
-			contexts[i].pinned.top.setChild(
-				stuck.top && stuck.top, 
-				runnerups.top && runnerups.top.getElement()
-			);
-
-			contexts[i].pinned.bottom.setChild(
-				stuck.bottom && stuck.bottom, 
-				runnerups.bottom && runnerups.bottom.getElement()
-			);
-		};
 		
 	}), false);
 	
@@ -319,23 +397,12 @@ depend(['m3/core/debounce'], function (debounce) {
 		context : findContext,
 		
 		stick : function (element, context, direction) { 
-			var ctx = undefined;
-			
+			var ctx = new Context(new Element(context));
 			/*
-			 * Find the context (if it already exists)
+			 * Element gets wrapped, and the placeholder wraps the element again.
 			 */
-			for(var i = 0; i < contexts.length; i++) {
-				if (contexts[i].getElement().getHTML() === context) {
-					ctx = contexts[i];
-				}
-			}
-			
-			if (ctx === undefined) {
-				ctx = new Context(new Element(context));
-				contexts.push(ctx);
-			}
-			
-			return new Sticky(new Element(wrap(wrap(element))), ctx, direction);
+			var element = wrap(element);
+			return new Sticky(new Element(element), new Element(wrap(element)), ctx, direction);
 		}
 	};
 	
