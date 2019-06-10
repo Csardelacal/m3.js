@@ -56,12 +56,11 @@ depend([], function() {
 		var returnv = undefined;
 	  
 	  return function () {
-		  if (returnv === undefined) { return returnv = fn.apply(window, arguments); }
+		  if (returnv === undefined) { returnv = fn.apply(window, arguments); }
 		  if (timeout) { return returnv; }
 		  
-		  var args = arguments;
 		  var callback = function () {
-			  returnv = fn.apply(window, args) || null;
+			  returnv = undefined;
 			  timeout = undefined;
 		  };
 		  

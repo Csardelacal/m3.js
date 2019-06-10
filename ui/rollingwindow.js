@@ -24,6 +24,17 @@
 
 depend([], function () {
 	
+	/*
+	 * A rolling window is basically a segment that allows to be moved around and
+	 * provides a few commodity methods.
+	 * 
+	 * This is most prominently used in the sticky code, which requires a lot of 
+	 * segment based operations that are greatly simplified by using this helper.
+	 * 
+	 * @param {int} a
+	 * @param {int} b
+	 * @returns {rollingwindowL#25.RollingWindow}
+	 */
 	var RollingWindow = function (a, b) {
 		this.a = a < b? a : b;
 		this.b = a < b? b : a;
@@ -31,6 +42,14 @@ depend([], function () {
 	
 	RollingWindow.prototype = {
 		
+		/*
+		 * The intersection of two windows is the segment in which both exist. This 
+		 * method will return undefined in the event of the two windows not touching
+		 * each other.
+		 * 
+		 * @param {type} r
+		 * @returns {undefined|rollingwindowL#25.RollingWindow}
+		 */
 		intersection: function (r) {
 			/*
 			 * Sort the windows first, if we put the first one first, we know the 
@@ -47,6 +66,13 @@ depend([], function () {
 			return new RollingWindow(pa, pb);
 		},
 		
+		/**
+		 * Returns true if a window contains another. Please note that this is achieved
+		 * by checking whether the intersection of both is equal to the target.
+		 * 
+		 * @param {type} r
+		 * @returns {Boolean}
+		 */
 		contains: function (r) {
 			var t = this.intersection(r);
 			
@@ -68,6 +94,12 @@ depend([], function () {
 		
 		extend : function (by) {
 			return new RollingWindow(this.a - by, this.b + by);
+		},
+		
+		move : function (direction, amt) {
+			if (direction === 'up') { return new RollingWindow(this.a - amt, this.b - amt); }
+			if (direction === 'down') { return new RollingWindow(this.a + amt, this.b + amt); }
+			return undefined;
 		}
 		
 	};
