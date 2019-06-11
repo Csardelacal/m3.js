@@ -27,10 +27,13 @@ depend(['m3/core/parent'], function (parent) {
 	
 	return function(event, condition, callback) {
 		
-		document.body.addEventListener(event, function (e) {
+		var fn = function (e) {
 			var found = parent(e.target, condition);
-			if (found) { callback(e, found); }
-		});
+			if (found) { callback.call(found, e, found); }
+		};
+		
+		document.body.addEventListener(event, fn);
+		return fn;
 	};
 	
 });

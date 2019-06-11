@@ -10,12 +10,14 @@ if (window      === undefined) { throw 'Lysine requires a browser to work. Windo
 
 depend([
 	'm3/core/collection',
+	'm3/core/delegate',
+	'm3/core/parent',
 	'm3/core/lysine/inputAdapter',
 	'm3/core/lysine/selectAdapter',
 	'm3/core/lysine/htmlAdapter',
 	'm3/core/lysine/attributeAdapter'
 ], 
-function (collection, input, select, htmlAdapter, attributeAdapter) {
+function (collection, delegate, parent, input, select, htmlAdapter, attributeAdapter) {
 	"use strict";
 	
 	function ArrayAdapter(view) {
@@ -97,6 +99,10 @@ function (collection, input, select, htmlAdapter, attributeAdapter) {
 	function Condition(expression, element, adapters) {
 		var exp = /([a-zA-Z_0-9]+)\(([a-zA-Z_0-9\-]+)\)\s?(\=\=|\!\=)\s?(.+)/g;
 		var res = exp.exec(expression);
+		
+		if (res === null) {
+			throw 'Malformed expression: ' + expression;
+		}
 		
 		var fn = res[1];
 		var id = res[2];
@@ -180,6 +186,7 @@ function (collection, input, select, htmlAdapter, attributeAdapter) {
 		
 		var view, 
 			 html,
+			 listeners = [],
 			 data = {};
 		
 		
@@ -209,7 +216,7 @@ function (collection, input, select, htmlAdapter, attributeAdapter) {
 			var ret = data;
 			var pieces = k.split('.');
 			
-			for (var i = 0; i < pieces.length; i++) { ret = ret[pieces[i]]; }
+			for (var i = 0; i < pieces.length; i++) { ret = ret? ret[pieces[i]] : undefined; }
 			return ret;
 		};
 
@@ -299,7 +306,34 @@ function (collection, input, select, htmlAdapter, attributeAdapter) {
 
 		this.destroy = function () {
 			html.parentNode.removeChild(html);
+			collection(listeners).each(function (e) { document.removeEventListener(e); })
 			return this;
+		};
+		
+		this.on = function (selector, event, callback) {
+			var slf = this;
+			
+			/*
+			 * Assemble the listener. Please note, that, for Lysine to work, it needs
+			 * to delegate listeners (otherwise it would just spam the system with
+			 * unwanted listeners all over the place)
+			 * 
+			 * The condition for Lysine to capture an event is that the element matches
+			 * the queryselector AND is a child of the current view.
+			 * 
+			 * Listeners should only be used with the root view, and may not work as
+			 * expected on nested ones.
+			 */
+			var t = delegate(event, 
+				function (e) {
+					var p = parent(e, function (f) { return f === slf.getHTML(); });
+					return p && collection(slf.getHTML().querySelectorAll(selector)).filter(function (f) { return f === e; })[0];
+				}, 
+				function (e, f) { callback.call(f, e, slf); }
+			);
+			
+			listeners.push(t);
+			return t;
 		};
 
 		//Constructor tasks
