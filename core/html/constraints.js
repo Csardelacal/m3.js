@@ -22,18 +22,32 @@
  * THE SOFTWARE.
  */
 
-
-depend(['m3/core/parent'], function (parent) {
+depend([], function () {
 	
-	return function(event, condition, callback) {
 		
-		var fn = function (e) {
-			var found = parent(e.target, condition);
-			if (found) { callback.call(found, e, found); }
-		};
+	/**
+	 * This function returns the constraints that an element fits into. This allows
+	 * an application to determine whether an item is onscreen, or whether two items
+	 * intersect.
+	 * 
+	 * Note: this function provides only the vertical offset, which is most often
+	 * needed since web pages tend to grow into the vertical space more than the 
+	 * horizontal.
+	 * 
+	 * @param {type} el
+	 * @returns {ui-layoutL#1.getConstraints.ui-layoutAnonym$0}
+	 */
+	return function (el) {
+		var t = 0;
+		var l = 0;
+		var w = el.clientWidth;
+		var h = el.clientHeight;
 		
-		document.body.addEventListener(event, fn);
-		return fn;
+		do {
+			t = t + el.offsetTop;
+			l = l + el.offsetLeft;
+		} while (null !== (el = el.offsetParent));
+		
+		return {top : t, bottom : document.body.clientHeight - t - h, left: l, width: w, height: h};
 	};
-	
 });

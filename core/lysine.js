@@ -151,6 +151,7 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		this.for = function() {
 			var c = collection([]);
 			adapters.each(function (e) { c.merge(e.for()); });
+			c.push(id);
 			
 			return c.raw();
 		};

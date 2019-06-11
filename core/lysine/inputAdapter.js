@@ -42,7 +42,11 @@ depend(function() {
 		 * If the user alters the data, we immediately inform the view.
 		 */
 		this.element.addEventListener('onkeyup', function() {
-			self.view.set(self.for(), this.value);
+			self.view.set(self.for()[0], this.value);
+		});
+		
+		this.element.addEventListener('change', function() {
+			self.view.set(self.for()[0], this.value);
 		});
 		
 	};
