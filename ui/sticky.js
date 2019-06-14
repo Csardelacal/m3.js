@@ -120,24 +120,20 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			var wrapper = placeholder.getHTML();
 			var detach  = this.getElement().getHTML();
 			var c       = detach.getBoundingClientRect();
+			var w       = wrapper.getBoundingClientRect();
 			
 			/*
 			 * Create a placeholder so the layout doesn't shift when the element
 			 * is being removed from the parent's static flow.
 			 */
-			wrapper.style.display = 'inline-block';
 			wrapper.style.height  = c.height + 'px';
-			wrapper.style.width   = c.width + 'px';
 			
 			/*
 			 * Pin the element accordingly.
 			 */
 			detach.style = null;
 			detach.style.position  = 'fixed';
-			detach.style.display   = 'inline-block';
-			detach.style.height    = c.height + 'px';
-			detach.style.width     = c.width + 'px';
-			detach.style.zIndex    = 5;
+			detach.style.width     = w.width + 'px';
 					
 				
 			if (position === 'top') {
@@ -167,20 +163,19 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			 * is being removed from the parent's static flow.
 			 */
 			detach.style = null;
-			wrapper.style.display = 'inline-block';
 			wrapper.style.height  = c.height + 'px';
-			wrapper.style.width   = c.width + 'px';
+			
+			detach.style.width     = c.width + 'px';
+			detach.style.zIndex    = 5;
 			
 			if (direction === 'top') {
 				detach.style.position  = 'absolute';
 				detach.style.top       = context.getElement().getBoundaries().a + 'px';
-				detach.style.left      = '0px';
 			}
 			
 			if (direction === 'bottom') {
 				detach.style.position  = 'absolute';
 				detach.style.top       = (context.getElement().getBoundaries().b - c.height) + 'px';
-				detach.style.left      = '0px';
 			}
 
 		};
@@ -204,14 +199,13 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			 * Create a placeholder so the layout doesn't shift when the element
 			 * is being removed from the parent's static flow.
 			 */
-			wrapper.style.display = 'inline-block';
 			wrapper.style.height  = c.height + 'px';
-			wrapper.style.width   = c.width + 'px';
 			
 			
 			detach.style.position  = 'absolute';
 			detach.style.top       = (c.top + offset.y) + 'px';
-			detach.style.left      = '0px';
+			detach.style.width     = c.width + 'px';
+			detach.style.zIndex    = 5;
 
 		};
 		

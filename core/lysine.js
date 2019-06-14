@@ -43,6 +43,8 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 				return;
 			}
 			
+			val = val.filter(function (e) { return !!e;})
+			
 			/*
 			 * In this scenario, we have more views than necessary and need to get 
 			 * rid of some. We first loop over the array to remove them from the 
@@ -205,10 +207,18 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		html = view.cloneNode(true);
 		
 		this.set = function (k, v) {
-			data[k] = v;
+			var ret = data;
+			var pieces = k.split('.');
+			
+			for (var i = 0; i < pieces.length; i++) { 
+				if (!ret[pieces[i]]) { ret[pieces[i]] = {}; }
+				ret = ret[pieces[i]]; 
+			}
+			
+			ret[k] = v;
 			
 			this.adapters.each(function(e) {
-				if (e.for().indexOf(k) === -1) { return; }
+				if (e.for().indexOf(pieces[1]) === -1) { return; }
 				e.refresh();
 			});
 		};
@@ -328,13 +338,17 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			var t = delegate(event, 
 				function (e) {
 					var p = parent(e, function (f) { return f === slf.getHTML(); });
-					return p && collection(slf.getHTML().querySelectorAll(selector)).filter(function (f) { return f === e; })[0];
+					return p && collection(slf.getHTML().querySelectorAll(selector)).filter(function (f) { return f === e; }).raw()[0];
 				}, 
 				function (e, f) { callback.call(f, e, slf); }
 			);
 			
 			listeners.push(t);
 			return t;
+		};
+		
+		this.find = function (selector) {
+			return this.getHTML().querySelector(selector);
 		};
 
 		//Constructor tasks
