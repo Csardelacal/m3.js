@@ -24,10 +24,17 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		this.views = [];
 		this.base  = view;
 		this.parentView = undefined;
+		this.listeners = collection([]);
+		this.writeProtect = false;
 
 		this.getValue = function () {
 			var ret = [],
 				 i;
+	  
+			/*
+			 * Ensure there's no destroyed views being used to read the data
+			 */
+			this.views = this.views.filter(function (e) { return !e.isDestroyed();});
 
 			for (i = 0; i < this.views.length; i+=1) {
 				ret.push(this.views[i].getValue());
@@ -36,6 +43,16 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		};
 
 		this.setValue = function (val) {
+			/**
+			 * While the code is propagating, as in: writing to the parent, it should
+			 * expect the parent to try an return the data back to the element.
+			 * 
+			 * Since we're currently writing data, we can safely reject it, since it
+			 * will provide the same data we are sending.
+			 */
+			if (this.writeProtect) { 
+				return; 
+			}
 
 			var i, v;
 
@@ -43,7 +60,8 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 				return;
 			}
 			
-			val = val.filter(function (e) { return !!e;})
+			val = val.filter(function (e) { return !!e;});
+			this.views = this.views.filter(function (e) { return !e.isDestroyed();});
 			
 			/*
 			 * In this scenario, we have more views than necessary and need to get 
@@ -64,8 +82,8 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 				v = new lysine(this.base);
 				this.views.push(v);
 				
-				//Create a gettter so we can read the data
-				this.makeGetter(i);
+				v.setParent(this);
+				this.listeners.each(function (e) { v.on.apply(v, e); })
 			}
 			
 			for (i = 0; i < val.length; i++) {
@@ -74,18 +92,14 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			
 		};
 		
-		this.makeGetter = function (idx) {
-			var ctx = this;
-			
-			Object.defineProperty(this, idx, {
-				get: function () { return ctx.views[idx]; },
-				configurable: true
-			});
-			
-		};
-		
 		this.for = function() {
 			return [this.base.getAttribute('data-for')];
+		};
+		
+		this.on = function (selector, event, callback) {
+			this.listeners.push([selector, event, callback]);
+			
+			this.views.forEach(function (e) { e.on(selector, event, callback); })
 		};
 		
 		this.parent = function(v) {
@@ -93,8 +107,28 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			return this;
 		};
 		
+		this.push = function(d) {
+			
+			var v = new lysine(this.base);
+			this.views.push(v);
+
+			v.setValue(d);
+			v.setParent(this);
+			
+			this.listeners.each(function (e) { v.on.apply(v, e); })
+			this.propagate();
+			
+			return v;
+		};
+		
 		this.refresh = function () {
 			this.setValue(this.parentView.get(this.for()[0]));
+		};
+		
+		this.propagate = function () {
+			this.writeProtect = true;
+			this.parentView.set(this.for()[0], this.getValue());
+			this.writeProtect = false;
 		};
 	}
 	
@@ -125,7 +159,6 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 					break;
 				case 'count':
 					val = !view.get(id)? 0 : view.get(id).length;
-					console.log(val);
 					break;
 				case 'value':
 					val = view.get(id);
@@ -168,7 +201,6 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			this.test();
 			
 			if (this.isVisible()) {
-				console.log(res);
 				adapters.each(function(e) { e.refresh(); });
 			}
 		};
@@ -192,6 +224,8 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			 listeners = [],
 			 data = {};
 		
+		this.destroyed = false;
+		this.parent = undefined;
 		
 		/*
 		 * First we receive the id and check whether it is a string or a HTMLElement
@@ -210,7 +244,7 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			var ret = data;
 			var pieces = k.split('.');
 			
-			for (var i = 0; i < pieces.length; i++) { 
+			for (var i = 0; i < pieces.length - 1; i++) { 
 				if (!ret[pieces[i]]) { ret[pieces[i]] = {}; }
 				ret = ret[pieces[i]]; 
 			}
@@ -218,9 +252,11 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			ret[k] = v;
 			
 			this.adapters.each(function(e) {
-				if (e.for().indexOf(pieces[1]) === -1) { return; }
+				if (e.for().indexOf(pieces[0]) === -1) { return; }
 				e.refresh();
 			});
+			
+			this.parent && this.parent.propagate(this, data);
 		};
 		
 		this.get = function (k) {
@@ -316,9 +352,15 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		this.getElement = this.getHTML;
 
 		this.destroy = function () {
+			this.destroyed = true;
+			this.parent && this.parent.propagate();
 			html.parentNode.removeChild(html);
-			collection(listeners).each(function (e) { document.removeEventListener(e); })
+			collection(listeners).each(function (e) { document.removeEventListener(e[0], e[1]); })
 			return this;
+		};
+
+		this.isDestroyed = function () {
+			return this.destroyed;
 		};
 		
 		this.on = function (selector, event, callback) {
@@ -343,8 +385,19 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 				function (e, f) { callback.call(f, e, slf); }
 			);
 			
-			listeners.push(t);
+			listeners.push([event, t]);
 			return t;
+		};
+		
+		this.sub = function (f) {
+			return this.adapters.filter(function(e) {
+				if (e.for().indexOf(f) === -1) { return false; }
+				return true;
+			}).get(0);
+		};
+		
+		this.setParent = function (p) {
+			this.parent = p;
 		};
 		
 		this.find = function (selector) {
