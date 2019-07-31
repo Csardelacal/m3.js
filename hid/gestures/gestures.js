@@ -31,7 +31,7 @@
  * @param {type} horizontalswipe
  * @returns {gesturesL#28.Gesture}
  */
-depend(['m3/hid/gestures/swipe'], function (swipe) {
+depend(['m3/hid/gestures/swipe', 'm3/hid/gestures/pinch'], function (swipe, pinch) {
 	
 	var Gesture = function (element, manipulator) {
 		this.element = element;
@@ -48,9 +48,14 @@ depend(['m3/hid/gestures/swipe'], function (swipe) {
 		this._follow = undefined;
 		this._end    = undefined;
 		
+		var self = this;
+		
 		switch (manipulator) {
 			case 'swipe':
 				this.backend = swipe;
+			break;
+			case 'pinch':
+				this.backend = pinch;
 			break;
 			default : 
 				throw 'Unsupported manipulator';
@@ -68,7 +73,7 @@ depend(['m3/hid/gestures/swipe'], function (swipe) {
 		 * when the application is not in a consistent state.
 		 */
 		window.visualViewport && window.visualViewport.addEventListener('resize', function(e) {
-			blocked = event.target.scale !== 1;
+			self.blocked = event.target.scale !== 1;
 		});
 	};
 	
@@ -82,7 +87,7 @@ depend(['m3/hid/gestures/swipe'], function (swipe) {
 			 * Verify that the backend is receiving a gesture with the right amount
 			 * of fingers.
 			 */
-			if (e.touches.length != this.backend.fingers) {
+			if (e.touches.length !== this.backend.fingers) {
 				this.started = undefined;
 				this.backend.end(this.meta, e.touches);
 				return;
