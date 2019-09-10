@@ -41,6 +41,12 @@ depend(['m3/promises/promise'], function(Promise) {
 					success(xhr.responseText);
 				}
 			};
+			
+			if (typeof(pd) === 'object') {
+				xhr.setRequestHeader('Content-type', 'application/json');
+				pd = JSON.stringify(pd);
+				console.log(pd);
+			} 
 
 			xhr.send(pd);
 		});
