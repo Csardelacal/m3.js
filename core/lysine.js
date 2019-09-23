@@ -157,6 +157,9 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 				case 'null':
 					val = view.get(id) === null? 'true' : 'false';
 					break;
+				case 'bool':
+					val = view.get(id) === true? 'true' : 'false';
+					break;
 				case 'count':
 					val = !view.get(id)? 0 : view.get(id).length;
 					break;
@@ -402,6 +405,10 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		
 		this.find = function (selector) {
 			return this.getHTML().querySelector(selector);
+		};
+		
+		this.findAll = function (selector) {
+			return this.getHTML().querySelectorAll(selector);
 		};
 
 		//Constructor tasks

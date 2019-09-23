@@ -37,9 +37,9 @@ depend(function () {
 	
 	Collection.prototype = {
 		each: function(fn) {
-			var ret = (typeof(this.elements) === 'object')? {} : [];
+			var ret = (this.elements instanceof Array)? [] : {};
 			
-			if (typeof(this.elements) === 'object') {
+			if (!this.elements instanceof Array) {
 				for (var i in this.elements) {
 					if (!this.elements.hasOwnProperty(i)) { continue; }
 					ret[i] = fn(this.elements[i], i);
@@ -103,6 +103,17 @@ depend(function () {
 		
 		raw : function () {
 			return this.elements;
+		},
+		
+		length : function () {
+			if (this.elements instanceof Array) {
+				return this.elements.length;
+		}
+			else {
+				var c = 0;
+				this.each(function () { c++; });
+				return c;
+			}
 		}
 	};
 	
