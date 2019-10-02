@@ -61,15 +61,15 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			}
 			
 			val = val.filter(function (e) { return !!e;});
-			this.views = this.views.filter(function (e) { return !e.isDestroyed();});
+			this.views = this.views.filter(function (e) { return e.reset() && !e.isDestroyed();});
 			
 			/*
 			 * In this scenario, we have more views than necessary and need to get 
 			 * rid of some. We first loop over the array to remove them from the 
 			 * HTML (destroy them). Then we slice the array with them in it.
 			 */
-			for (i = val.length; i < this.views.length; i+=1) {
-				this.views[i].destroy();
+			while (val.length < this.views.length) {
+				this.views[val.length].destroy();
 			}
 			
 			this.views = this.views.slice(0, val.length);
@@ -244,6 +244,11 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		html = view.cloneNode(true);
 		
 		this.set = function (k, v) {
+			
+			if (k.substr(0, 1) === '^') {
+				return this.parent.parentView.set(k.substr(1), v);
+			}
+			
 			var ret = data;
 			var pieces = k.split('.');
 			
@@ -263,6 +268,10 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		};
 		
 		this.get = function (k) {
+			if (k.substr(0, 1) === '^') {
+				return this.parent.parentView.get(k.substr(1));
+			}
+			
 			var ret = data;
 			var pieces = k.split('.');
 			
@@ -288,6 +297,32 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		
 		this.getData = function () {
 			return data;
+		};
+		
+		/**
+		 * Resets all the components in the view to their original state. This allows
+		 * lysine based applications to have inputs that are reset whenever the data
+		 * changes.
+		 * 
+		 * If the data should not be reset, please make sure to store it before 
+		 * overwriting it.
+		 * 
+		 * @returns {Boolean}
+		 */
+		this.reset = function () {
+			var inputs = html.querySelectorAll('input');
+			
+			for (var i = 0; i < inputs.length; i++) {
+				switch(inputs[i].type) {
+					case 'checkbox':
+					case 'radio':
+						inputs[i].checked = inputs[i].hasAttribute('checked');
+					default:
+						inputs[i].value = inputs[i].hasAttribute('value')? inputs[i].getAttribute('value') : '';
+				}
+			}
+			
+			return true;
 		};
 
 		this.getValue = this.getData;

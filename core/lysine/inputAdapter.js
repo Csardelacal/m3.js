@@ -46,35 +46,17 @@ depend(function() {
 		});
 		
 		this.element.addEventListener('change', function() {
-			self.view.set(self.for()[0], this.value);
+			if (this.type === 'radio' || this.type === 'checkbox') {
+				self.view.set(self.for()[0], this.value || this.checked);
+			} 
+			else {
+				self.view.set(self.for()[0], this.value);
+			}
 		});
 		
 	};
 	
 	InputAdapter.prototype = {
-		/**
-		 * Gets the value of the input being managed. It will therefore just read 
-		 * the object's value property.
-		 * 
-		 * @deprecated 
-		 * @returns {String}
-		 */
-		getValue: function () {
-			return this.element.value;
-		},
-		
-		/**
-		 * Defines the value for the element. This way we can change it on the 
-		 * browser to 'output' it to the user
-		 * 
-		 * @deprecated 
-		 * @param {String} val
-		 * @returns {undefined}
-		 */
-		setValue: function (val) {
-			if (val === undefined) { val = ''; }
-			this.element.value = val;
-		},
 		
 		readOnly: function () {
 			return false;
@@ -90,11 +72,23 @@ depend(function() {
 		},
 		
 		refresh : function () {
-			this.element.value = this.view.get(this.for()[0]);
+			var val = this.view.get(this.for()[0]);
+			
+			console.log(this.element.type);
+			if (this.element.type === 'radio' || this.element.type === 'checkbox') {
+				console.log(val);
+				if ((this.element.value && this.element.value === val) || val === true) { this.element.checked = true; }
+				else { this.element.checked = false; }
+				return;
+			}
+			
+			this.element.value = val;
 		}
 	};
 	
 	var findAdapters = function (element) {
+		
+		if (!element.getAttribute('data-for')) { return []; }
 		
 		if (element.tagName.toLowerCase() === "input" || element.tagName.toLowerCase() === "textarea") {
 			return [new InputAdapter(element)];
