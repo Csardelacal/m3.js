@@ -25,7 +25,7 @@
 
 depend(['m3/promises/promise'], function(Promise) {
 	
-	return function (url, pd) {
+	return function (url, pd, blob) {
 		return new Promise(function(success, error) {
 			
 			var xhr = new XMLHttpRequest();
@@ -35,10 +35,10 @@ depend(['m3/promises/promise'], function(Promise) {
 				if (xhr.readyState !== 4) { return; }
 				
 				if (xhr.status !== 200) {
-					error(xhr.responseText);
+					error(xhr.response);
 				}
 				else {
-					success(xhr.responseText);
+					success(xhr.response);
 				}
 			};
 			
@@ -47,6 +47,10 @@ depend(['m3/promises/promise'], function(Promise) {
 				pd = JSON.stringify(pd);
 				console.log(pd);
 			} 
+			
+			if (blob) {
+				xhr.responseType = 'blob';
+			}
 
 			xhr.send(pd);
 		});
