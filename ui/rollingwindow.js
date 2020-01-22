@@ -74,7 +74,12 @@ depend([], function () {
 		 * @returns {Boolean}
 		 */
 		contains: function (r) {
-			var t = this.intersection(r);
+			/*
+			 * We must reduce the size of the current rollingwindow by 1 before comparing
+			 * their intersection. This ensures that the element is confined within
+			 * the other and nto just equal.
+			 */
+			var t = this.extend(-1).intersection(r);
 			
 			if (t === undefined) { return false; }
 			return t.a === r.a && t.b === r.b;

@@ -69,13 +69,8 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			/*
 			 * In the special case that our item has gigantic boundaries that fit the
 			 * viewport in them, we don't move it so the user can scroll inside it.
-			 * 
-			 * Since we assume that the viewport has moved a little, we follow up the 
-			 * appropriate amount. Otherwise, the scroll event is fired before the 
-			 * scroll has actually moved, causing the sidebar to jump ahead of it's position
-			 * or jittering.
 			 */
-			if (contextB.contains(viewport) && elementB.contains(viewport.move(direction, 1))) { 
+			if (contextB.contains(viewport) && elementB.contains(viewport)) { 
 				return this.ground(); 
 			}
 			
