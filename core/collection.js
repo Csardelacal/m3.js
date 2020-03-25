@@ -23,7 +23,7 @@
  */
 
 
-depend(function () {
+depend('m3/core/collection', function () {
 	
 	"use strict";
 	

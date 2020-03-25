@@ -82,7 +82,7 @@
 		}
 	}
 	
-	function script(src) {
+	function script(src, identifier) {
 		/*
 		 * We create a script tag so the user gets a feeling for what he imported.
 		 * This allows the browser to expose proper debugging.
@@ -90,10 +90,10 @@
 		 * @type @exp;document@call;createElement
 		 */
 		var script = document.createElement('script');
-		script.src = router(src);
+		script.src = src;
 		script.async = true;
 		script.type = 'text/javascript';
-		script.setAttribute('data-src', src);
+		script.setAttribute('data-src', identifier);
 		
 		return script;
 	}
@@ -105,6 +105,10 @@
 		this.load = function () {
 			var self = this;
 			
+			/*
+			 * If our module has already been loaded by the system, then feel free
+			 * to skip to waiting until the module's body is ready.
+			 */
 			if (available(identifier)) {
 				available(identifier).onReady(function() {
 					self.callable = this.getCallable();
@@ -113,11 +117,48 @@
 				return;
 			}
 			
+			/*
+			 * Have the router determine whether the module needs to be loaded from
+			 * a file or is directly available to the router as a closure.
+			 * 
+			 * @type url|String|Closure
+			 */
+			var src = router(identifier);
+			
+			
+			/*
+			 * If the router returns a function that can be used to build a module,
+			 * then the module can be loaded by just executing this function.
+			 */
+			if (typeof(src) === 'function') {
+				src(); //Load the module
+				var module = last;
+				module.setName(identifier);
+				last = null;
+				
+				/*
+				 * Once the module has become available, we expect it to let us know.
+				 * This way we can continue loading the rest of the modules.
+				 */
+				module.onReady(function () {
+					self.callable = module.getCallable();
+					loader.notify();
+				});
+				return;
+			}
+			
+			/*
+			 * It's possible that loading of the module has been queued but not yet
+			 * completed. If this is the case, we don't send of a second request but
+			 * instead will add an additional listener to the old script tag.
+			 * 
+			 * @type Element|script.script
+			 */
 			if (isQueued(identifier)) {
 				var tag = isQueued(identifier);
 			}
 			else {
-				var tag = script(identifier);
+				var tag = script(src, identifier);
 			}
 			
 			on(tag, 'load', function (e) {
@@ -209,14 +250,14 @@
 		var self = this;
 
 		this.name = name;
-		this.callable = undefined;
+		this.body = undefined;
 		this.resolved = false;
 		this.listeners = [];
 
 		this.init = function () {
 			new DependencyLoader(dependencies, function (deps) {
 				try {
-					self.callable = definition.apply(null, deps);
+					self.body = definition.apply(null, deps);
 				} catch (e) {
 					console.log('Error initializing module ' + this.name + '. Error was: ');
 					console.error(e);
@@ -251,7 +292,7 @@
 		},
 
 		getCallable: function () {
-			return this.callable;
+			return this.body;
 		}
 	};
 
@@ -303,5 +344,6 @@
 	 */
 	window.depend = depend;
 	window.depend.setRouter = function(r) { router = r; };
+	window.depend.moduleName = function(r) { last.setName(r); last = null; };
 	
 }());

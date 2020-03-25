@@ -440,14 +440,27 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		this.findAll = function (selector) {
 			return this.getHTML().querySelectorAll(selector);
 		};
-
+		
+		var template = undefined;
+		
 		//Constructor tasks
+		if (view.content) {
+			template = view.content.firstElementChild;
+		}
+		else {
+			/*
+			 * Addresses a bug in Internet explorer, which will not expose the proper
+			 * API to templates
+			 */
+			template = view.firstChild;
+			while(template && template.nodeType != 1)  { template = template.nextSibling; }
+		}
 
 		/*
 		 * Make a deep copy of the node. This allows Lysine to create as many copies
 		 * of the original without causing trouble among the copies.
 		 */
-		html = document.importNode(view.content.firstElementChild, true);
+		html = document.importNode(template, true);
 		this.adapters = this.fetchAdapters();
 		view.parentNode.insertBefore(html, view);
 	}
