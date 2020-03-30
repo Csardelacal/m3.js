@@ -69,8 +69,8 @@ depend(['m3/core/collection'], function(collection) {
 		makeAdapters: function () {
 			if (!this.hasLysine()) { return []; }
 			
-			var exp1 = /\{\{([A-Za-z0-9\.\s\?\-\:]+)\}\}/g;
-			var exp2 = /\{\{[A-Za-z0-9\.\s\?\-\:]+\}\}/g;
+			var exp1 = /\{\{([A-Za-z0-9\.\s\?\-\:\_]+)\}\}/g;
+			var exp2 = /\{\{[A-Za-z0-9\.\s\?\-\:\_]+\}\}/g;
 			
 			var adapters = [];
 			

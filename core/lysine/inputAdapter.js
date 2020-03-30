@@ -47,7 +47,7 @@ depend(function() {
 		
 		this.element.addEventListener('change', function() {
 			if (this.type === 'radio' || this.type === 'checkbox') {
-				self.view.set(self.for()[0], this.value || this.checked);
+				self.view.set(self.for()[0], this.value === 'on'? true : this.value || this.checked);
 			} 
 			else {
 				self.view.set(self.for()[0], this.value);
@@ -76,6 +76,7 @@ depend(function() {
 			
 			console.log(this.element.type);
 			if (this.element.type === 'radio' || this.element.type === 'checkbox') {
+				console.log(this.for()[0]);
 				console.log(val);
 				if ((this.element.value && this.element.value === val) || val === true) { this.element.checked = true; }
 				else { this.element.checked = false; }

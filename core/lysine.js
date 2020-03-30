@@ -246,16 +246,17 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 
 			var ret = data;
 			var pieces = k.split('.');
+			var last   = pieces.pop();
 
-			for (var i = 0; i < pieces.length - 1; i++) {
+			for (var i = 0; i < pieces.length; i++) {
 				if (!ret[pieces[i]]) { ret[pieces[i]] = {}; }
 				ret = ret[pieces[i]];
 			}
-
-			ret[k] = v;
+			
+			ret[last] = v;
 
 			this.adapters.each(function(e) {
-				if (e.for().indexOf(pieces[0]) === -1) { return; }
+				if (e.for().indexOf(pieces[0] || last) === -1) { return; }
 				e.refresh();
 			});
 
