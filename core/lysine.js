@@ -26,6 +26,9 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 		this.parentView = undefined;
 		this.listeners = collection([]);
 		this.writeProtect = false;
+		
+		this._setup = collection([]);
+		this._tearDown = collection([]);
 
 		this.getValue = function () {
 			var ret = [],
@@ -73,6 +76,14 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			}
 
 			this.views = this.views.slice(0, val.length);
+			
+			/*
+			 * Loop over the left views and call teardown on them
+			 */
+			var t = this._tearDown;
+			collection(this.views).each(function (view) {
+				t.each(function (fn) { fn(view); });
+			});
 
 			/*
 			 * In the event of the views not being enough to hold the data, we will
@@ -85,6 +96,11 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 				v.setParent(this);
 				this.listeners.each(function (e) { v.on.apply(v, e); })
 			}
+			
+			var t = this._setup;
+			collection(this.views).each(function (view) {
+				t.each(function (fn) { fn(view); });
+			});
 
 			for (i = 0; i < val.length; i++) {
 				this.views[i].setValue(val[i]);
@@ -100,6 +116,14 @@ function (collection, delegate, parent, input, select, htmlAdapter, attributeAda
 			this.listeners.push([selector, event, callback]);
 
 			this.views.forEach(function (e) { e.on(selector, event, callback); })
+		};
+		
+		this.setUp = function (fn) {
+			this._setup.push(fn);
+		};
+		
+		this.tearDown = function (fn) {
+			this._tearDown.push(fn);
 		};
 
 		this.parent = function(v) {
