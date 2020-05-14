@@ -178,9 +178,9 @@
 				var next = this._suitors[i]._promise;
 				nextTick( function() { next.resolve(r); });
 			} catch (e) {
-				var e = e;
+				var ev = e;
 				var next = this._suitors[i]._promise;
-				nextTick( function() { next.reject(e); });
+				nextTick( function() { next.reject(ev); });
 			}
 		}
 	};
