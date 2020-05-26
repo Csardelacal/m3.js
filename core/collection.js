@@ -93,6 +93,10 @@ depend('m3/core/collection', function () {
 			this.elements.push(v);
 		},
 		
+		pop: function () {
+			return this.elements.pop();
+		},
+		
 		set: function (idx, v) {
 			this.elements[idx] = v;
 		},
