@@ -42,7 +42,11 @@ depend(['m3/promises/promise'], function(Promise) {
 				}
 			};
 			
+<<<<<<< HEAD
+			if (pd != null && typeof(pd) === 'object' && !pd instanceof FormData) {
+=======
 			if (typeof(pd) === 'object' && !(pd instanceof FormData)) {
+>>>>>>> master
 				xhr.setRequestHeader('Content-type', 'application/json');
 				pd = JSON.stringify(pd);
 				console.log(pd);
