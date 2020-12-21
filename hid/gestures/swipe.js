@@ -30,8 +30,6 @@ depend([], function () {
 		
 		fingers  : 1,   //An horizontal swipe happens with just one finger.
 		
-		movementRerquired : 100,
-		
 		start : function (touches) {
 			var finger = touches[0];
 			

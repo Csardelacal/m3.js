@@ -44,7 +44,12 @@ depend(['m3/animation/bezier', 'm3/animation/easing'], function(bezier, easing) 
 			
 			fn(e.calculate(progress));
 			
-			if (progress !== 1) { setTimeout(draw, refresh); }
+			if (window.requestAnimationFrame) {
+				if (progress !== 1) { window.requestAnimationFrame(draw); }
+			}
+			else {
+				if (progress !== 1) { setTimeout(draw, refresh); }
+			}
 		};
 		
 		draw();

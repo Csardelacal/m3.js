@@ -62,9 +62,9 @@ depend(['m3/hid/gestures/swipe', 'm3/hid/gestures/pinch'], function (swipe, pinc
 		};
 		
 		var self = this;
-		element.addEventListener('touchstart', function (e) { self.start(e); })
-		element.addEventListener('touchmove', function (e) { self.move(e); });
-		element.addEventListener('touchend', function (e) { self.terminate(e); });
+		element.addEventListener('touchstart', function (e) { self.start(e); }, {passive: false});
+		element.addEventListener('touchmove', function (e) { self.move(e); }, {passive: false});
+		element.addEventListener('touchend', function (e) { self.terminate(e); }, {passive: false});
 		
 		
 	
@@ -97,12 +97,14 @@ depend(['m3/hid/gestures/swipe', 'm3/hid/gestures/pinch'], function (swipe, pinc
 			 */
 			else {
 				this.meta = this.backend.start(e.touches);
-				e.stopPropagation();
-				e.preventDefault();
 			}
 			
 			this.started = +new Date();
-			this._init && this._init(this.meta);
+			this._init && this._init(this.meta, function () {
+				//This function allows the gesture handler to own the event
+				e.stopPropagation();
+				e.preventDefault();
+			});
 			
 		},
 		move      : function (e) {
@@ -118,7 +120,10 @@ depend(['m3/hid/gestures/swipe', 'm3/hid/gestures/pinch'], function (swipe, pinc
 			}
 			
 			this.meta = this.backend.update(this.meta, e.touches);
-			this._follow && this._follow(this.meta, function () { e.stopPropagation(); e.preventDefault(); });
+			this._follow && this._follow(this.meta, function () { 
+				if(!e.cancellable) { return; }
+				e.stopPropagation(); e.preventDefault(); 
+			});
 		},
 		terminate : function (e) {
 			if (this.blocked) {
