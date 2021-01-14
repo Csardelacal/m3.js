@@ -48,6 +48,8 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 		this.clear = 0;
 		
 		this.status = 'grounded';
+		this.scrollDirection = 'down';
+		this.offset = element.getBoundaries().a;
 		
 		this.getElement   = function () { return element; };
 		this.getContext   = function () { return context; };
@@ -56,61 +58,74 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			return direction || 'top'; 
 		};
 		
-		this.update = function (viewport, direction) {
+		this.update = function (viewport, direction, delta) {
 			var contextB = this.getContext().getElement().getBoundaries();
-			var elementB = this.getElement().getBoundaries();
+			var elementB = new RollingWindow(this.offset, this.offset + this.getElement().dimensions.height);
+			
+			/**
+			 * If the element is floating, it position is considered relative to the 
+			 * viewport
+			 */
+			if (this.status === 'floating') {
+				elementB = elementB.move('down', viewport.a);
+			}
+			
+			/*
+			 * In case the viewport is bigger than the element we only care for the 
+			 * part that is as big as the element. We can then shrink it to fit 
+			 * appropriately
+			 */
+			var diff = (viewport.b - viewport.a) - (elementB.b - elementB.a);
+			
+			if ( diff > 0 ) {
+				if (this.getDirection() === 'top') { viewport.b-= diff; }
+				if (this.getDirection() === 'bottom') { viewport.a+= diff; }
+			}
 			
 			/*
 			 * If the viewport and the context do not touch, then there's no way our
 			 * item is going to be displayed.
 			 */
-			if (contextB.intersection(viewport) === undefined) { return this.reset(); }
-			
-			/*
-			 * In the special case that our item has gigantic boundaries that fit the
-			 * viewport in them, we don't move it so the user can scroll inside it.
-			 */
-			if (contextB.contains(viewport) && elementB.contains(viewport)) { 
-				return this.ground(); 
-			}
-			
-			/*
-			 * If the context is large enough to contain the element, then we automatically
-			 * pin the item to wherever it wants.
-			 */
-			if (contextB.contains(viewport)) { 
-				return elementB.height() > viewport.height()? (this.pin(direction === 'up'? 'top' : 'bottom')) : this.pin(this.getDirection()); 
-			}
+			if (contextB.intersection(viewport) === undefined) { return this.ground(contextB.a); }
 			
 			/*
 			 * If the context is small enough to fit into the viewport, then our item 
 			 * will be certianly not moving around.
 			 */
-			if (viewport.contains(contextB)) { return this.reset(); }
+			if (viewport.contains(contextB)) { return this.ground(contextB.a); }
 			
 			/*
-			 * At this point we know that the context and the viewport intersect,
-			 * but that neither of them contain the other. This means that we need 
-			 * to make a decision.
+			 * 
 			 */
-			if (contextB.above(viewport)) {
-				if (this.getDirection() === 'top') { return elementB.height() > contextB.intersection(viewport).height()? this.latch('bottom') : this.pin('top'); }
-				if (this.getDirection() === 'bottom') { return this.latch('bottom'); }
+			if (viewport.below(contextB)) { return this.ground(contextB.b - this.getElement().dimensions.height); }
+			if (viewport.above(contextB)) { return this.ground(contextB.a); }
+			
+			if (direction !== this.scrollDirection && diff < 0) {
+				this.ground(elementB.a);
+				this.scrollDirection = direction;
+				//return;
 			}
 			
-			if (contextB.below(viewport)) {
-				if (this.getDirection() === 'top') { return this.latch('top'); }
-				if (this.getDirection() === 'bottom') { return elementB.height() > contextB.intersection(viewport).height()? this.latch('top') : this.pin('bottom'); }
+			/*
+			 * 
+			 */
+			if (direction === 'down' && viewport.below(elementB)) { 
+				this.pin(this.getDirection() === 'top'? Math.min(diff, 0) : diff); 
+				return;
+			}
+			
+			if (direction === 'up' && viewport.above(elementB)) { 
+				this.pin(this.getDirection() === 'top'? 0 : Math.max(diff, 0)); 
+				return;
 			}
 			
 		};
 		
-		this.pin = function (position) {
-			if (this.status === 'pinned.' + position) {
-				return;
-			}
+		this.pin = function ( at) 
+		{
 			
-			this.status = 'pinned.' + position;
+			this.status = 'floating';
+			this.offset = at;
 
 			var wrapper = placeholder.getHTML();
 			var detach  = this.getElement().getHTML();
@@ -129,60 +144,16 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			detach.style = null;
 			detach.style.position  = 'fixed';
 			detach.style.width     = w.width + 'px';
-					
-				
-			if (position === 'top') {
-				detach.style.top = '0px';
-			}
-
-			if (position === 'bottom') {
-				detach.style.bottom = '0px';
-			}
+			detach.style.top = at + 'px';
+			
 		};
 		
 		
-		this.latch = function (direction) {
+		this.ground = function (at) {
 			
-			if (this.status === 'latch.' + direction) {
-				return;
-			}
-			
-			this.status =  'latch.' + direction;
-			
-			var wrapper = placeholder.getHTML();
-			var detach  = this.getElement().getHTML();
-			var c       = detach.getBoundingClientRect();
-			
-			/*
-			 * Create a placeholder so the layout doesn't shift when the element
-			 * is being removed from the parent's static flow.
-			 */
-			detach.style = null;
-			wrapper.style.height  = c.height + 'px';
-			
-			detach.style.width     = c.width + 'px';
-			detach.style.zIndex    = 5;
-			
-			if (direction === 'top') {
-				detach.style.position  = 'absolute';
-				detach.style.top       = context.getElement().getBoundaries().a + 'px';
-			}
-			
-			if (direction === 'bottom') {
-				detach.style.position  = 'absolute';
-				detach.style.top       = (context.getElement().getBoundaries().b - c.height) + 'px';
-			}
-
-		};
-		
-		
-		this.ground = function () {
-			
-			if (this.status === 'grounded') {
-				return;
-			}
 			
 			this.status =  'grounded';
+			this.offset = at;
 			
 			var wrapper = placeholder.getHTML();
 			var detach  = this.getElement().getHTML();
@@ -198,30 +169,9 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 			
 			
 			detach.style.position  = 'absolute';
-			detach.style.top       = (c.top + offset.y) + 'px';
+			detach.style.top       = at + 'px';
 			detach.style.width     = c.width + 'px';
 			detach.style.zIndex    = 5;
-
-		};
-		
-		
-		this.reset = function () {
-			
-			if (this.status === 'grounded') {
-				return;
-			}
-			
-			this.status =  'grounded';
-			
-			var wrapper = placeholder.getHTML();
-			var detach  = this.getElement().getHTML();
-			
-			/*
-			 * Create a placeholder so the layout doesn't shift when the element
-			 * is being removed from the parent's static flow.
-			 */
-			detach.style = null;
-			wrapper.style = null;
 
 		};
 		
@@ -246,7 +196,12 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 		this.getBoundaries = debounce(function () { 
 			var box = original.getBoundingClientRect();
 			return new RollingWindow(box.top + offset.y, offset.y + box.top + box.height);
-		}, 50);
+		}, 500);
+		
+		/*
+		 * Calculate the dimensions of the item the first time
+		 */
+		this.dimensions = original.getBoundingClientRect();
 		
 		this.getHTML = function() {
 			return original;
@@ -281,14 +236,14 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 		 * of the browser. So, we must read them before making any changes to the
 		 * DOM
 		 */
-		offset = {x : window.pageXOffset, y : window.pageYOffset, dir : (window.pageYOffset - offset.y) > 0? 'down' : 'up' };
+		offset = {x : window.pageXOffset, y : window.pageYOffset, dir : (window.pageYOffset - offset.y) > 0? 'down' : 'up', delta : window.pageYOffset - offset.y };
 		height = window.innerHeight;
 
 		/*
 		 * Only elements with oncreen contexts are even remotely relevant to this 
 		 * query, since offscreen contexts never allow their elements to escape.
 		 */
-		registered.forEach( function (e) { e.update(new RollingWindow(offset.y, offset.y + height), offset.dir); });
+		registered.forEach( function (e) { e.update(new RollingWindow(offset.y, offset.y + height), offset.dir, offset.delta); });
 		
 
 		
@@ -302,7 +257,7 @@ depend(['m3/core/debounce', 'm3/ui/rollingwindow'], function (debounce, RollingW
 		 * of the browser. So, we must read them before making any changes to the
 		 * DOM
 		 */
-		offset = {x : window.pageXOffset, y : window.pageYOffset, dir : (window.pageYOffset - offset.y) > 0? 'down' : 'up' };
+		offset = {x : window.pageXOffset, y : window.pageYOffset, dir : (window.pageYOffset - offset.y) > 0? 'down' : 'up', delta : window.pageYOffset - offset.y};
 		height = window.innerHeight;
 
 		/*
